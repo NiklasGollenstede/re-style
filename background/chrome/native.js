@@ -1,4 +1,4 @@
-async port => { 'use strict'; /* global require, process, */ // eslint-disable-line no-unused-expressions
+async port => { 'use strict'; /* global require, process, */ /* eslint-disable no-console */ // eslint-disable-line no-unused-expressions
 
 console.log('init chrome');
 

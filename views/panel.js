@@ -2,6 +2,7 @@
 	'node_modules/web-ext-utils/browser/': { Tabs, },
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
 	'background/remote/': Remote,
+	'background/remote/map-url': mapUrl,
 }) => async ({ document, }, { activeTab, }) => {
 
 document.body.innerHTML = `
@@ -13,18 +14,8 @@ document.body.innerHTML = `
 const input  = document.querySelector('#url');
 const button = document.querySelector('#add');
 
-let url = (activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(activeTab)) : (await Tabs.query({ currentWindow: true, active: true, }))[0]).url;
-
-switch (true) {
-	case (/^https?:\/\/userstyles\.org\/styles\/\d+/).test(url): {
-		url = 'https://userstyles.org/styles/'+ (/\d+/).exec(url)[0] +'.css';
-	} break;
-	case (/^https:\/\/github.com\/[\w-]+\/[\w-]+\/blob\/master\/.*\.css/).test(url): {
-		url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/master/', '/master/');
-	} break;
-}
-
-input.value = url;
+const url = (activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(activeTab)) : (await Tabs.query({ currentWindow: true, active: true, }))[0]).url;
+input.value = mapUrl(url);
 
 button.addEventListener('click', event => {
 	if (event.button) { return; }

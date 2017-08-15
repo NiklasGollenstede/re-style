@@ -20,6 +20,16 @@ const model = {
 				default: null,
 				input: { type: 'random', label: 'Refresh Now', suffix: `Loads all remote styles from their origins and refreshes them if necessary.`, },
 			},
+			import: {
+				title: `Import from URLs`,
+				default: true,
+				input: [ { type: 'control', label: `Import`, suffix: `styles from a whitespace separated list of URLs.`, id: `import-from-urls`, }, ],
+			},
+			fetchWithNode: {
+				default: false,
+				restrict: { type: 'boolean', },
+				input: { type: 'boolean', suffix: `use node.js to fetch scripts`, },
+			},
 		},
 	},
 	chrome: {
@@ -58,7 +68,7 @@ const model = {
 		children: {
 			name: {
 				title: 'Local folder',
-				description: `All non-hidden (starting with <code>.</code>) files in this folder and its subfolders ending with <code>.css</code> are applied as user styles.`,
+				description: `All <abbr title="Files or folders starting with a '.' (dot) are considered hidden">non-hidden</abbr> files in this folder and its subfolders ending with <code>.css</code> are applied as user styles.`,
 				default: [ 'C:/dev/stylish/', ],
 				restrict: { type: 'string', },
 				input: { type: 'string', },

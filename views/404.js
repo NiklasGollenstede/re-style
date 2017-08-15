@@ -3,7 +3,7 @@
 	'node_modules/web-ext-utils/browser/': { manifest, },
 }) => ({ document: { body, }, history: { state, }, }, { name, }) => {
 
-const code = (/^[45]\d\d/).test(name) && name;
+const code = (/^[45]\d\d$/).test(name) && name;
 !code && console.error(`Got unknown view "${ name }"`);
 
 let message; switch (code) {
@@ -13,7 +13,7 @@ let message; switch (code) {
 }
 
 body.innerHTML = `
-	<h1>${ code || 404 }</h1>
+	<h1>${ +code || 404 }</h1>
 	<h3>${ escapeHtml(message) }</h3>
 `;
 

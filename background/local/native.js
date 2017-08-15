@@ -1,4 +1,4 @@
-async port => { 'use strict'; /* global require, */ // eslint-disable-line no-unused-expressions
+async port => { 'use strict'; /* global require, */ /* eslint-disable no-console */ // eslint-disable-line no-unused-expressions
 
 console.log('init local');
 

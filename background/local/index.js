@@ -12,18 +12,19 @@ let unloading = false; global.addEventListener('unload', () => (unloading = true
 
 async function enable() {
 	if (active) { return; } active = options.local.value = true;
-	console.log('enable local styles');
+	// console.log('enable local styles');
 	exclude = new RegExp(options.local.children.exclude.value || '^.^');
 	native = (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
-	native.addHandler('log', console.log.bind(console, 'native log'));
+	// native.addHandler('log', console.log.bind(console, 'native log'));
 
 	const files = (await native.request('readStyles', 'C:/dev/stylish/', onCange));
 	native.afterEnded('release', onCange);
 
-	console.log('got local styles', files);
+	// console.log('got local styles', files);
 	for (const [ path, css, ] of Object.entries(files)) {
 		if (exclude.test(path)) { continue; }
-		(await createStyle(path, css));
+		try { (await createStyle(path, css)); }
+		catch (error) { reportError(`Failed to add local style`, path, error); }
 	}
 
 	native.ended.then(() => global.setTimeout(() => {
@@ -35,20 +36,20 @@ async function enable() {
 async function onCange(path, css) { try {
 	const old = styles.get(path);
 	if (old) { if (css) {
-		console.log('change', path);
+		console.info('change', path);
 		old.setSheet(css);
 	} else {
-		console.log('delete', path);
+		console.info('delete', path);
 		old.destroy(); styles.delete(path);
 	} } else if (css) {
-		console.log('create', path);
+		console.info('create', path);
 		(await createStyle(path, css));
 	}
 } catch (error) { console.error('Error in fs.watch handler',  error); } }
 
 function disable() {
 	if (!active) { return; } active = options.local.value = false;
-	console.log('disable local styles');
+	// console.log('disable local styles');
 	Array.from(styles.values(), _=>_.destroy()); styles.clear();
 	native && native.destroy(); native = null;
 }

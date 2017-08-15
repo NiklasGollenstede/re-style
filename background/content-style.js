@@ -19,8 +19,8 @@ class ContentStyleP {
 		self.code = code; self.include = include;
 		self._code = this.code = '@-moz-document '+ include.map(exp => `regexp(${ JSON.stringify(exp.source) })`) + '{'+ code +`} /* ${ Math.random() } */`;
 
-		getFrames().then(_=>_.forEach(({ tabId, frameId, url, }) => Tabs.insertCSS(tabId, { code: this.code, frameId, /*cssOrigin: 'user',*/ }).catch(error => {
-			console.error('WTF', tabId, frameId, url, _, error);
+		getFrames().then(_=>_.forEach(({ tabId, frameId, url, }) => Tabs.insertCSS(tabId, { code: this.code, frameId, runAt: 'document_start', /*cssOrigin: 'user',*/ }).catch(error => {
+			void (url, error); // console.error('WTF', tabId, frameId, url, _, error);
 		})));
 
 		Object.freeze(self);
@@ -45,7 +45,7 @@ const getFrames = (runing => () => runing || (runing = (async () => {
 })().then(res => ((runing = null), res))))();
 
 WebNavigation.onCommitted.addListener(({ tabId, frameId, url, }) => {
-	isScripable(url) && Self.forEach(({ code, }) => Tabs.insertCSS(tabId, { frameId, code, }));
+	isScripable(url) && Self.forEach(({ code, }) => Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', }));
 });
 
 function isScripable(url) {

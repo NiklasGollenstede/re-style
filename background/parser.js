@@ -8,7 +8,7 @@ function parseStyle(css, { minify = true, } = { }) {
 	let namespace = '';
 	const declarations = [ ];
 	const sections = [ ];
-	let globalCode = '';
+	const globalTokens = [ ];
 
 	for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
 		case '@namespace': {
@@ -18,7 +18,7 @@ function parseStyle(css, { minify = true, } = { }) {
 			index += parts.length + 2;
 			switch (parts.length) {
 				case 0: break; // or throw?
-				case 1: namespace = parts; break;
+				case 1: namespace = parts[0]; break;
 				default: declarations.push('@namespace '+ parts.join(' ') +';');
 			}
 		} break;
@@ -29,33 +29,34 @@ function parseStyle(css, { minify = true, } = { }) {
 			const patterns = parts.map(decl => {
 				const match = rUrlRule.exec(decl);
 				if (!match) { throw new Error(`Can't parse @document rule \`\`\`${ decl }´´´`); }
-				const { type, string, raw = string.replace(/\\+/g, _ => '\\'.repeat(Math.floor(_.length / 2))), } = match;
+				const { type, string, raw = string.replace(/\\+/g, _ => '\\'.repeat(Math.ceil(_.length / 2))), } = match;
 				switch (type) {
 					case 'url': return RegExpX`^${ raw }$`;
 					case 'url-prefix': return RegExpX`^${ raw }.*$`;
-					case 'domain': return RegExpX`^https?://(?:[^/]*.)?${ raw }(?:$|/.*)$`;
-					case 'regexp': return RegExpX`^${ new RegExp(raw) }$`;
+					case 'domain': return RegExpX`^https?://(?:[^/]*.)?${ raw }(?:$|/.*$)`;
+					case 'regexp': return new RegExp(`^${ raw }$`);
 					default: throw new Error(`Unrecognized @document rule ${ type }`);
 				}
 			});
 			const end = skipBlock(tokens, start);
-			const code = finalizeCode(tokens.slice(start +1, end));
+			const code = (minify ? minifyTokens(tokens.slice(start +1, end)) : tokens.slice(start +1, end)).join('');
 			sections.push({ patterns, code, });
 			index = end +1;
 		} break;
 		case '{': case '(': {
 			const closing = skipBlock(tokens, index);
-			globalCode += finalizeCode(tokens.slice(index +1, closing));
-			index = closing + 1;
+			globalTokens.push(tokens[index]);
+			globalTokens.push.apply(globalTokens, tokens.slice(index +1, closing));
+			globalTokens.push(tokens[closing]);
+			index = closing;
 		} break;
 		default: {
-			globalCode += finalizeCode([ tokens[index], ]);
+			globalTokens.push(tokens[index]);
 		}
 	} }
 
 	const prefix = (namespace ? '@namespace '+ namespace +';' : '') + declarations.join('');
-	minify && (globalCode = globalCode.replace(/\s+/, ' '));
-	globalCode = (/^\s*$/).test(globalCode) ? '' : prefix + globalCode;
+	const globalCode = (minify ? minifyTokens(globalTokens) : globalTokens).join('');
 	sections.forEach(_ => (_.code = prefix + _.code));
 
 	return {
@@ -64,12 +65,6 @@ function parseStyle(css, { minify = true, } = { }) {
 		sections,
 		globalCode,
 	};
-
-	function finalizeCode(tokens) {
-		minify && (tokens = tokens.filter(_=>!(/^\/\*/).test(_)));
-		const code = tokens.join('');
-		return minify ? stripWhitespace(code) : code;
-	}
 }
 
 const rNonEscape = RegExpX`(?:
@@ -101,10 +96,32 @@ function tokenize(css) {
 	return tokens;
 }
 
-function stripWhitespace(css) {
-	return css
-	.replace(/(^|\S)\s+/g, (_, prefix) => prefix + ((/[:;,.{}+\-*]/).test(prefix) ? '' : ' '))
-	.replace(/\s+(\S|$)/g, (_, suffix) => ((/[;,(){}+\-*]/).test(suffix) ? '' : ' ') + suffix);
+function minifyTokens(input) {
+	if (comment(input[0])) { input[0] = ''; }
+	if (comment(input[input.length - 1])) { input[input.length - 1] = ''; }
+	for (let i = 1, end = input.length - 1; i < end; ++i) {
+		if (comment(input[i])) {
+			input[i] = '';
+			if (blank(input[i - 1]) && blank(input[i + 1])) {
+				input[i + 1] = '';
+			}
+		}
+	}
+	if (blank(input[0])) { input[0] = ''; }
+	if (blank(input[input.length - 1])) { input[input.length - 1] = ''; }
+	for (let i = 1, end = input.length - 1; i < end; ++i) {
+		if (blank(input[i])) {
+			let j = i + 1, next; while ((!(next = input[j]) || blank(next)) && j < end) { ++j; }
+			if (!input[i - 1] || (/[>:;,{}+-]$/).test(input[i - 1]) || (/^[>!;,(){}+-]/).test(next)) {
+				input[i] = '';
+			} else {
+				input[i] = ' ';
+			}
+		}
+	}
+	return input;
+	function blank(token) { return (/^\s/).test(token); }
+	function comment(token) { return (/^\/\*/).test(token); }
 }
 
 function skipBlock(tokens, index) {

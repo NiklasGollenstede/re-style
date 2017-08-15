@@ -11,40 +11,38 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 
 	manifestJson.options_ui.open_in_tab = true;
 
-	files.node_modules = {
-		es6lib: [
-			'dom.js',
-			'functional.js',
-		],
-		regexpx: [
-			'index.js',
-		],
-		'web-ext-utils': {
-			'.': [
-				'browser/index.js',
-				'browser/version.js',
-				'loader/',
-				'tabview/',
-				'utils/',
-				'lib/multiport/index.js',
-				'lib/pbq/require.js',
-			],
-			options: {
-				'.': [ 'index.js', ],
-				editor: [
-					'about.js',
-					'about.css',
-					'dark.css',
-					'index.js',
-					'index.css',
-					'inline.js',
-				],
-			},
-			update: [
-				'index.js',
-			],
-		},
-	};
+	files.node_modules = [
+		'es6lib/dom.js',
+		'es6lib/functional.js',
+		'es6lib/string.js',
+		'regexpx/index.js',
+		'web-ext-utils/browser/index.js',
+		'web-ext-utils/browser/version.js',
+		'web-ext-utils/lib/multiport/index.js',
+		'web-ext-utils/lib/pbq/require.js',
+		'web-ext-utils/loader/_background.html',
+		'web-ext-utils/loader/_background.js',
+		'web-ext-utils/loader/_view.html',
+		'web-ext-utils/loader/_view.js',
+		'web-ext-utils/loader/home.js',
+		'web-ext-utils/loader/index.js',
+		'web-ext-utils/loader/multiplex.js',
+		'web-ext-utils/loader/native.js',
+		'web-ext-utils/loader/views.js',
+		'web-ext-utils/options/editor/about.css',
+		'web-ext-utils/options/editor/about.js',
+		'web-ext-utils/options/editor/dark.css',
+		'web-ext-utils/options/editor/index.css',
+		'web-ext-utils/options/editor/index.js',
+		'web-ext-utils/options/index.js',
+		'web-ext-utils/tabview/index.css',
+		'web-ext-utils/tabview/index.js',
+		'web-ext-utils/update/index.js',
+		'web-ext-utils/utils/event.js',
+		'web-ext-utils/utils/files.js',
+		'web-ext-utils/utils/index.js',
+		'web-ext-utils/utils/semver.js',
+	];
 
 	if (options.run && !(options.run.prefs === 0 || options.run.prefs === null)) {
 		const run = typeof options.run === 'object' ? options.run

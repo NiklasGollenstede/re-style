@@ -31,7 +31,6 @@ class ChromeStyle {
 			source: path,
 		});
 		writeStyles();
-		console.log('add ChromeStyle', this);
 	}
 
 	destroy() {
@@ -39,7 +38,6 @@ class ChromeStyle {
 		styles.delete(this);
 		this.css = null;
 		writeStyles();
-		console.log('remove ChromeStyle', this);
 	}
 }
 
@@ -48,7 +46,8 @@ const writeStyles = debounce(async () => {
 	native = native || (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
 	// TODO: this throws all @namespace declarations into a single file. Is that even supposed to work? Do later (default) declarations overwrite earlier ones?
 	// TODO: do @import rules work? Should they?
-	const css = Array.from(styles).sort((a, b) => a.path < b.path ? -1 : 1)
+	const css = Array.from(styles)
+	.sort((a, b) => a.path < b.path ? -1 : 1)
 	.map(({ path, css, }) => `/* ${ path } */\n${ css }`)
 	.join(`\n/*"*//*'*/;};};};};};}@media not all {}\n`);
 	// this terminator sequence closes open strings, comments, blocks and declarations

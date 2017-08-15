@@ -6,16 +6,18 @@
 	Parser,
 }) => {
 
-const rXulNs = RegExpX`^
-	url(["']?http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul["']?)
-$`;
-const rAgentSheet = RegExpX('i')`
-	/\* \s* AGENT_SHEET \s* \*/ # TODO: this is incorrect. Agent sheets are actually something different that userChrome or userContent.css
-`;
-const rChromeExp = RegExpX`^\^+ ( # must all start with at least one ^
+const rXulNs = RegExpX`^(?: # should also remove all backslashes before testing against this
+	  url\("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"\)
+	| url\('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul'\)
+	| url\( http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul \)
+	|      "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+	|      'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul'
+)$`;
+const rChromeExp = RegExpX`^\^+ (?: # must all start with at least one ^
 	  about: # any about page // TODO: exclude blank?
 	| data: # probably also blob: ?
 	| (?:chrome|resource):\\\/\\\/
+	| http s\?? :\\?\/\\?\/ (?: \(\?\:\[\^\\?\/\]\*\.\)\? )? addons\\\.mozilla\\\.org (?: \\?\/ | \(\?\:\$\|\\\/\.\*\$\) ) # domain(addons.mozilla.org) or url(-prefix)?(https://addons.mozilla.org/...)
 )`;
 
 const optionsModel = ({ url, id, name, removeHidden = false, }) => ({
@@ -72,7 +74,7 @@ class Style {
 		const old = this.styles.splice(0, Infinity);
 
 		const { globalCode, sections, namespace, } = Parser.parseStyle(css);
-		let chrome; if (rXulNs.test(namespace) || rAgentSheet.test(css)) { this.styles.push(chrome = new ChromeStyle(this.url, css)); }
+		let chrome; if (rXulNs.test(namespace.replace(/\\/g, ''))) { this.styles.push(chrome = new ChromeStyle(this.url, css)); }
 
 		globalCode && sections.push({ code: globalCode, patterns: null, });
 		sections.forEach(({ code, patterns, }) => {
