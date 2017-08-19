@@ -15,13 +15,11 @@ const model = {
 				maxLength: Infinity,
 				restrict: { type: 'string', },
 			},
-			refreshNow: {
-				description: ` `, // margin
-				default: null,
-				input: { type: 'random', label: 'Refresh Now', suffix: `Loads all remote styles from their origins and refreshes them if necessary.`, },
+			updateNow: {
+				default: true,
+				input: { type: 'control', label: 'Update', suffix: `all remote styles from their origins and refreshes them if necessary.`, },
 			},
 			import: {
-				title: `Import from URLs`,
 				default: true,
 				input: [ { type: 'control', label: `Import`, suffix: `styles from a whitespace separated list of URLs.`, id: `import-from-urls`, }, ],
 			},
@@ -34,22 +32,23 @@ const model = {
 	},
 	chrome: {
 		title: 'UI Styles',
-		// expanded: false,
 		description: `Starting with Firefox 57, it is no longer possible for Add-ons to directly apply user styles to anything else than normal websites.<br>
 		As a workaround, ${ manifest.name } recognizes styles that will no longer work and writes them to the
 		<code>userCrome.css</code> (e.g. for the UI) and <code>userContent.css</code> (e.g. for about:-pages).<br>
 		NOTE: This overwrites all previous content and all changes to those files.<br>
-		NOTE: The browser must be restarted for changes to those files to ally.`,
+		NOTE: The browser must be restarted for changes to those files to apply.`,
 		default: true,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
 		children: {
 			profile: {
+				expanded: false,
 				title: 'Profile location',
 				description: `To change the files in your Firefox profile, ${ manifest.name } needs to know where that profile is.
 				There is a chance that this can be automatically detected. If not, you will see a corresponding error message.
 				If that is the case, please paste the path to the root of the profile directory below.<br>
-				To get that path, open <code><a href="about:support">about:support</a></code>, click the "Open Folder" button in the "Profile Folder" row of its first table and copy that path.`,
+				To get that path, open <code><a href="about:support" title="Please drag this to the tab bar">about:support</a></code>,
+				click the "Open Folder" button in the "Profile Folder" row of its first table and copy that path.`,
 				default: [ '', ],
 				restrict: { type: 'string', },
 				input: { type: 'string', },

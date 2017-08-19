@@ -112,7 +112,7 @@ function minifyTokens(input) {
 	for (let i = 1, end = input.length - 1; i < end; ++i) {
 		if (blank(input[i])) {
 			let j = i + 1, next; while ((!(next = input[j]) || blank(next)) && j < end) { ++j; }
-			if (!input[i - 1] || (/[>:;,{}+-]$/).test(input[i - 1]) || (/^[>!;,(){}+-]/).test(next)) {
+			if (!input[i - 1] || (/[>:;,{}+]$/).test(input[i - 1]) || (/^[>!;,(){}+]/).test(next)) {
 				input[i] = '';
 			} else {
 				input[i] = ' ';
@@ -136,6 +136,7 @@ function skipBlock(tokens, index) {
 
 return {
 	parseStyle,
+	tokenize,
 };
 
 }); })(this);

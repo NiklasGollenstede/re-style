@@ -1,0 +1,61 @@
+
+/* general */
+* {
+	box-sizing: border-box;
+}
+body {
+	font-family: Segoe UI, Tahoma, sans-serif;
+	font-size: 12.5px;
+}
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+/* sizes and spacing */
+
+.pref-name-id {
+	font-size: 125%;
+}
+
+.pref-name-name,
+.pref-name-controls {
+	display: inline-block;
+}
+
+.pref-name-name input {
+	width: 400px;
+	max-width: calc(100vw - 40px);
+	margin-right: 10px;
+}
+.pref-name-controls input {
+	margin-right: 5px;
+}
+
+.local input[data-id="update"],
+.local input[data-id="remove"]
+{ display: none; }
+
+
+
+/* inputs */
+input {
+	border-style: solid;
+	border-width: 1px;
+	outline: none;
+	border-radius: 3px;
+	padding: 2px 7px;
+	height: 25px;
+}
+input:focus, input:active:focus {
+	outline: none;
+}
+input:active:focus {
+	transition-delay: 0.06s;
+}
+
+/* transitions */
+* {
+	transition-property: color, fill, background-color, border-color, box-shadow, opacity;
+	transition-duration: 0.21s;
+}

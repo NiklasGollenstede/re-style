@@ -1,4 +1,4 @@
-async port => { 'use strict'; /* global require, process, */ /* eslint-disable no-console */ // eslint-disable-line no-unused-expressions
+async port => { 'use strict'; /* global require, process, Buffer, */ /* eslint-disable no-console */ // eslint-disable-line no-unused-expressions
 
 console.log('init chrome');
 
@@ -13,11 +13,20 @@ port.addHandler(async function writeUserChromeCss(profileDir, css) {
 		throw new Error(`The profile location is not specified and can't be detected. Please set it manually.`);
 	}
 
+	const buffer = Buffer.allocUnsafe(Buffer.byteLength(css));
+	buffer.write(css, 0, 'utf-8');
+
 	try { (await get(FS.stat, profileDir)); } catch (_) { throw new Error(`Cant access profile directory in "${ profileDir }"`); }
 	try { (await get(FS.mkdir, profileDir +'/chrome')); } catch (_) { }
-	(await get(FS.writeFile, profileDir +'/chrome/userChrome.css', css, 'utf8'));
-	(await get(FS.writeFile, profileDir +'/chrome/userContent.css', css, 'utf8'));
-	console.log('wrote userC*.css');
+
+	let changed = 0;
+	try { changed |= Buffer.compare(buffer, (await get(FS.readFile, profileDir +'/chrome/userChrome.css', buffer))); } catch (_) { changed = 1; }
+	try { changed |= Buffer.compare(buffer, (await get(FS.readFile, profileDir +'/chrome/userContent.css', buffer))); } catch (_) { changed = 1; }
+	if (!changed) { console.log('userC*.css not changed'); return false; }
+
+	(await get(FS.writeFile, profileDir +'/chrome/userChrome.css', buffer));
+	(await get(FS.writeFile, profileDir +'/chrome/userContent.css', buffer));
+	console.log('wrote userC*.css'); return true;
 });
 
 port.ended.then(() => console.log('chrome closed'));

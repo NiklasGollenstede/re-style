@@ -4,22 +4,38 @@
 }) => {
 
 class ContentStyle {
-	constructor(options) {
-		new ContentStyleP(this, options);
+	constructor({ include, code, }) {
+		new _ContentStyle(this, include, code, null);
+	}
+
+	matches(url) {
+		const self = Self.get(this);
+		return self.includes.some(exp => exp.test(url));
 	}
 
 	destroy() {
 		Self.get(this).destroy();
 	}
+
+	toJSON() {
+		const self = Self.get(this);
+		return { type: 'ContentStyle', code: self.code, include: self.include.map(_=>_.source), };
+	}
+
+	static fromJSON({ code, include, }) {
+		const _this = Object.create(ContentStyle.prototype);
+		new _ContentStyle(_this, include.map(_=>RegExp(_)), null, code);
+		return _this;
+	}
 }
 
-class ContentStyleP {
-	constructor(self, { code, include, }) {
+class _ContentStyle {
+	constructor(self, include, code, processed) {
 		Self.set(this.public = self, this);
-		self.code = code; self.include = include;
-		self._code = this.code = '@-moz-document '+ include.map(exp => `regexp(${ JSON.stringify(exp.source) })`) + '{'+ code +`} /* ${ Math.random() } */`;
+		this.include = Object.freeze(include);
+		this.code = processed || '@-moz-document '+ include.map(exp => `regexp(${ JSON.stringify(exp.source) })`) + '{'+ code +`} /* ${ Math.random() } */`;
 
-		getFrames().then(_=>_.forEach(({ tabId, frameId, url, }) => Tabs.insertCSS(tabId, { code: this.code, frameId, runAt: 'document_start', /*cssOrigin: 'user',*/ }).catch(error => {
+		getFrames().then(_=>_.forEach(({ tabId, frameId, url, }) => Tabs.insertCSS(tabId, { code: this.code, frameId, runAt: 'document_start', }).catch(error => {
 			void (url, error); // console.error('WTF', tabId, frameId, url, _, error);
 		})));
 
@@ -40,7 +56,8 @@ const getFrames = (runing => () => runing || (runing = (async () => {
 		const frames = (await WebNavigation.getAllFrames({ tabId, }));
 		if (!frames.length || !isScripable(frames[0].url)) { return; }
 		frames.forEach(({ frameId, url, parentFrameId, }) => isScripable(url) && result.push({ tabId, frameId, parentFrameId, url, }));
-	})));
+	})).catch(() => null));
+	// console.log('getFrames', result);
 	return result;
 })().then(res => ((runing = null), res))))();
 

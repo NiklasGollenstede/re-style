@@ -20,7 +20,7 @@ input.value = mapUrl(url);
 button.addEventListener('click', event => {
 	if (event.button) { return; }
 	const url = input.value; button.disabled = true;
-	Remote.addFromUrl(url).then(
+	Remote.add(url).then(
 		() => { reportSuccess(`Style added`, `from "${ url }"`); input.value = ''; button.disabled = false; },
 		error => { reportError(`Failed to add style from "${ url }"`, error); button.disabled = false; },
 	);

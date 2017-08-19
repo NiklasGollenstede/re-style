@@ -2,12 +2,15 @@
 	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
+	'node_modules/es6lib/dom': { createElement, },
 	'background/remote/': Remote,
 	'background/remote/map-url': mapUrl,
 	'common/options': options,
+	'fetch!node_modules/web-ext-utils/options/editor/index.css': css,
 }) => ({ document, prompt, }) => {
 
 document.title = 'Options - '+ manifest.name;
+document.head.appendChild(createElement('style', [ css, ]));
 
 new Editor({
 	options, prefix: '', onCommand,
@@ -26,7 +29,7 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 		const urls = string.trim().split(/\s+/g);
 		const failed = [ ];
 
-		(await Promise.all(urls.map(url => Remote.addFromUrl(mapUrl(url)).catch(error => {
+		(await Promise.all(urls.map(url => Remote.add(mapUrl(url)).catch(error => {
 			failed.push(url); console.error('Import error', error);
 		}))));
 
@@ -37,7 +40,7 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 			: reportError(`Failed to import:`, failed[0], failed[1], `and ${ failed.length - 2 } more styles`)
 		);
 	} break;
-	case 'clear': throw new Error(`Not implemented`);
+	case 'update': throw new Error(`Not implemented`);
 
 	default: {
 		throw new Error('Unhandled command "'+ name +'"');

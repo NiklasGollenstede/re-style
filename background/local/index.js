@@ -6,7 +6,7 @@
 	'../style': Style,
 	require,
 }) => {
-let native = null/*Port*/; const styles = new Map/*<path, Style>*/; let exclude = null/*RegExp*/;
+let native = null/*Port*/; const styles = new Map/*<id, Style>*/; let exclude = null/*RegExp*/;
 let active = false; options.local.whenChange(async ([ value, ]) => { try { (await (value ? enable() : disable())); } catch (error) { reportError(error); } });
 let unloading = false; global.addEventListener('unload', () => (unloading = true));
 
@@ -21,11 +21,14 @@ async function enable() {
 	native.afterEnded('release', onCange);
 
 	// console.log('got local styles', files);
-	for (const [ path, css, ] of Object.entries(files)) {
-		if (exclude.test(path)) { continue; }
-		try { (await createStyle(path, css)); }
-		catch (error) { reportError(`Failed to add local style`, path, error); }
-	}
+	(await Promise.all(
+		(await Promise.all(Object.keys(files).map(path => !exclude.test(path) && new Style(path, ''))))
+		.filter(_=>_).map(async style => {
+			styles.set(style.id, style);
+			try { (await style.setSheet(files[style.url])); }
+			catch (error) { reportError(`Failed to add local style`, style.url, error); }
+		})
+	));
 
 	native.ended.then(() => global.setTimeout(() => {
 		!unloading && active && reportError('Connection to native extension lost');
@@ -34,16 +37,18 @@ async function enable() {
 }
 
 async function onCange(path, css) { try {
-	const old = styles.get(path);
+	const id = (await Style.url2id(path));
+	const old = styles.get(id);
 	if (old) { if (css) {
 		console.info('change', path);
 		old.setSheet(css);
 	} else {
 		console.info('delete', path);
-		old.destroy(); styles.delete(path);
+		old.destroy(); styles.delete(id);
 	} } else if (css) {
 		console.info('create', path);
-		(await createStyle(path, css));
+		const style = (await new Style(path, css));
+		styles.set(id, style);
 	}
 } catch (error) { console.error('Error in fs.watch handler',  error); } }
 
@@ -54,24 +59,16 @@ function disable() {
 	native && native.destroy(); native = null;
 }
 
-async function createStyle(path, css) {
-	const style = (await new Style(path, css));
-	styles.set(path, style);
-	style.options.model.remove.hidden = true;
-	style.options.children.refresh.onChange(resetAnd(() => reportError('Not implemented')));
-	return style;
-}
-
-function resetAnd(action) { return function(_, __, { values, }) {
-	if (!values.isSet) { return; } values.reset(); action.apply(null, arguments);
-}; }
-
 return {
-	get native() { return native; },
-	get styles() {
-		return Array.from(styles.values())
-		.sort((a, b) => a.url < b.url ? -1 : 1)
-		.map(_=>_.options.children);
+	get _native() { return native; },
+	enable(id) { styles.get(id).disabled = false; },
+	disable(id) { styles.get(id).disabled = true; },
+	async get() {
+		return (await Promise.all(
+			Array.from(styles.values())
+			.sort((a, b) => a.url < b.url ? -1 : 1)
+			.map(_=>_.options)
+		)).map(_=>_.children);
 	},
 };
 

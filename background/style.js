@@ -6,6 +6,8 @@
 	Parser,
 }) => {
 
+const childTypes = { ChromeStyle, ContentStyle, };
+
 const rXulNs = RegExpX`^(?: # should also remove all backslashes before testing against this
 	  url\("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"\)
 	| url\('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul'\)
@@ -13,14 +15,15 @@ const rXulNs = RegExpX`^(?: # should also remove all backslashes before testing 
 	|      "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
 	|      'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul'
 )$`;
-const rChromeExp = RegExpX`^\^+ (?: # must all start with at least one ^
+const rChromeExp = RegExpX`^\^+ (?: \( (?: \?\: )? )? (?: # must start with at least one ^ optionally followed by ( or (?:
 	  about: # any about page // TODO: exclude blank?
 	| data: # probably also blob: ?
-	| (?:chrome|resource):\\\/\\\/
+	| view-source:
+	| (?:chrome|resource|moz-extension):\\\/\\\/
 	| http s\?? :\\?\/\\?\/ (?: \(\?\:\[\^\\?\/\]\*\.\)\? )? addons\\\.mozilla\\\.org (?: \\?\/ | \(\?\:\$\|\\\/\.\*\$\) ) # domain(addons.mozilla.org) or url(-prefix)?(https://addons.mozilla.org/...)
 )`;
 
-const optionsModel = ({ url, id, name, removeHidden = false, }) => ({
+const optionsModel = ({ url, id, name, }) => ({
 	id: {
 		description: url,
 		default: id,
@@ -31,58 +34,113 @@ const optionsModel = ({ url, id, name, removeHidden = false, }) => ({
 		restrict: { type: 'string', },
 		input: { type: 'string', default: name, },
 	},
-	enabled: {
-		default: true,
-		restrict: { type: 'boolean', },
-		input: { type: 'boolean', suffix: `enabled`, },
-	},
-	refresh: {
-		description: ` `, // margin
-		default: null,
-		input: { type: 'random', label: 'Update', },
-	},
-	remove: {
-		description: ` `, // margin
-		default: null,
-		input: { type: 'random', label: 'Remove', },
-		get hidden() { return removeHidden; }, set hidden(v) { removeHidden = v; },
-	},
+	controls: { default: true, input: [
+		{ type: 'control', id: 'enable',   label: 'Enable', },
+		{ type: 'control', id: 'disable',  label: 'Disable', },
+		{ type: 'control', id: 'update',   label: 'Update', },
+		{ type: 'control', id: 'remove',   label: 'Remove', },
+	], },
 });
 
-class Style {
-	constructor(url, css) { return (async () => {
-		this.url = this.id = this.hash = '';
-		this.options = null; this.styles = [ ];
+const Self = new WeakMap;
 
-		this.url = url; this.id = (await sha256(url));
-		this.options = (await new Options({ model: optionsModel({
-			id: this.id, url,
-			name: url.split(/[\/\\]/g).pop(),
-		}), prefix: this.id, }));
-		css && (await this.setSheet(css));
-		return this;
+class Style {
+	constructor(url, code) {
+		return new _Style(this, url, code);
+	}
+
+	async setSheet(code) { return Self.get(this).setSheet(code); }
+
+	get url() { return Self.get(this).url; }
+	get id() { return Self.get(this).id; }
+
+	get disabled() { return Self.get(this).disabled; }
+	set disabled(value) {
+		const self = Self.get(this);
+		self.disabled ? self.enable() : self.disable();
+	}
+
+	/* async */ get options() {
+		const self = Self.get(this);
+		if (self.options) { return self.options; }
+		return (self._options = new Options({ model: optionsModel({
+			id: self.id, url: self.url,
+			name: self.url.split(/[\/\\]/g).pop(),
+		}), prefix: self.id, }));
+	}
+
+	toJSON() {
+		const self = Self.get(this);
+		return { type: 'Style',
+			url: self.url, id: self.id, code: self.code, hash: self.hash,
+			styles: self.styles.map(_=>_.toJSON()), disabled: self.disabled,
+		};
+	}
+
+	static fromJSON({ url, id, code, hash, styles, disabled, }) {
+		const _this = Object.create(Style.prototype);
+		const self = Object.create(_Style.prototype);
+		Self.set(self.public = _this, self);
+		self.url = url; self.id = id; self.code = code; self.hash = hash; self.disabled = disabled;
+		self.styles = styles.map(style => childTypes[style.type].fromJSON(style));
+		return _this;
+	}
+
+	static async url2id(string) {
+		const hash = (await global.crypto.subtle.digest('SHA-256', new global.TextEncoder('utf-8').encode(string)));
+		return Array.from(new Uint8Array(hash)).map((b => b.toString(16).padStart(2, '0'))).join('');
+	}
+
+	destroy() { Self.get(this).destroy(); }
+}
+
+class _Style {
+	constructor(self, url, code) { return (async () => {
+		Self.set(this.public = self, this);
+		this.url = this.id = this.code = this.hash = '';
+		this.options = null; this.styles = [ ];
+		this.disabled = false;
+
+		this.url = url; this.id = (await Style.url2id(url));
+
+		code && (await this.setSheet(code));
+		return self;
 	})(); }
 
-	async setSheet(css) {
-		if (!this.id) { return; }
-		if (!css) {
+	async setSheet(code) {
+		if (!this.id) { return null; }
+		if (!code) {
 			this.styles.splice(0, Infinity).forEach(_=>_.destroy());
-			return void (this.hash = '');
+			const changed = !!this.code;
+			this.code = this.hash = '';
+			return changed;
 		}
-		const hash = (await sha256(css));
-		if (hash === this.hash) { return; } this.hash = hash;
+		const hash = (await Style.url2id(code));
+		if (hash === this.hash) { return false; }
+		this.code = code; this.hash = hash;
+		!this.disabled && this.enable();
+		return true;
+	}
+
+	enable() {
+		this.disabled = false;
 		const old = this.styles.splice(0, Infinity);
 
-		const { globalCode, sections, namespace, } = Parser.parseStyle(css);
-		let chrome; if (rXulNs.test(namespace.replace(/\\/g, ''))) { this.styles.push(chrome = new ChromeStyle(this.url, css)); }
+		const { globalCode, sections, namespace, } = Parser.parseStyle(this.code);
+		let chrome; if (rXulNs.test(namespace.replace(/\\/g, ''))) { this.styles.push(chrome = new ChromeStyle(this.url, this.code)); }
 
 		globalCode && sections.push({ code: globalCode, patterns: null, });
 		sections.forEach(({ code, patterns, }) => {
 			const include = patterns ? patterns.filter(exp => !rChromeExp.test(exp.source)) : [ /^[^]*$/, ];
-			if (patterns && patterns.length > include.length) { chrome || this.styles.push(chrome = new ChromeStyle(this.url, css)); }
-			this.styles.push(new ContentStyle({ code, include, }));
+			if (patterns && patterns.length > include.length) { chrome || this.styles.push(chrome = new ChromeStyle(this.url, this.code)); }
+			include.length && this.styles.push(new ContentStyle({ code, include, }));
 		});
 		old.forEach(_=>_.destroy());
+	}
+
+	disable() {
+		this.disabled = true;
+		this.styles.splice(0, Infinity).forEach(_=>_.destroy());
 	}
 
 	destroy() {
@@ -94,10 +152,5 @@ class Style {
 }
 
 return Style;
-
-async function sha256(string) {
-	const hash = (await global.crypto.subtle.digest('SHA-256', new global.TextEncoder('utf-8').encode(string)));
-	return Array.from(new Uint8Array(hash)).map((b => b.toString(16).padStart(2, '0'))).join('');
-}
 
 }); })(this);

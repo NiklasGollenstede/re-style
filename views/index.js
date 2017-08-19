@@ -10,13 +10,17 @@ return new Home({
 		title: 'Styles',
 		icon: getURL('icon.svg'),
 	}, {
+		id: 'setup',
+		title: 'Setup',
+		icon: new global.Text('❓'),
+	}, {
 		id: 'options',
 		title: 'Options',
 		icon: new global.Text('⚙'),
 	}, {
 		id: 'about',
 		title: 'About',
-		icon: new global.Text('i'),
+		icon: new global.Text('🛈'),
 	}, {
 		id: '404',
 		title: 'Error',
@@ -26,7 +30,6 @@ return new Home({
 	index: 'styles',
 	style: [ 'vertical', 'firefox', 'dark', ],
 	head: [
-		createElement('link', { href: getURL(`node_modules/web-ext-utils/options/editor/index.css`), rel: 'stylesheet', }),
 		createElement('link', { href: getURL(`node_modules/web-ext-utils/options/editor/dark.css`), rel: 'stylesheet', }),
 	],
 });

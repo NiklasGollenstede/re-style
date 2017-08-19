@@ -10,53 +10,48 @@
 
 const urlList = options.remote.children.urls.values; const styles = new Map/*<id, Style>*/;
 
-(await Promise.all(urlList.current.map(url => load(url))));
+{ // load existing
+	(await Promise.all(
+		(await Promise.all(urlList.current.map(url => Style.url2id(url))))
+		.map(id => 'remote.cache.'+ id)
+		.map(key => Storage.get(key).then(_=>_[key]))
+	)).forEach(stored => {
+		const style = Style.fromJSON(stored);
+		styles.set(style.id, style);
+	});
+}
 
-options.remote.children.refreshNow.onChange(resetAndReport(() => {
-	Promise.all(Array.from(styles.values(), style => refresh(style))).catch(reportError);
+options.remote.children.updateNow.onChange(resetAndReport(() => {
+	Promise.all(Array.from(styles.values(), style => update(style))).catch(reportError);
 }));
 
-async function createStyle(url) {
-	const style = (await new Style(url, ''));
-	styles.set(style.id, style);
-	style.options.children.refresh.onChange(resetAndReport(() => refresh(style)));
-	style.options.children.remove .onChange(resetAndReport(() => remove(style)));
-	return style;
-}
-
-async function addFromUrl(url) {
+async function add(url) {
 	if (urlList.current.includes(url)) { throw new Error(`URL ${ url } is already loaded as a style`); }
 
-	const style = (await createStyle(url));
-	(await refresh(style));
+	const style = (await new Style(url, ''));
+	styles.set(style.id, style);
+	(await update(style.id));
 
 	(await insertUrl(url));
+	return style.id;
 }
 
-async function load(url) {
-	const style = (await createStyle(url));
-
-	const key = 'remote.css.'+ style.id;
-	const css = (await Storage.get(key))[key];
-	(await style.setSheet(css));
-}
-
-async function refresh(style) {
-	const hash = style.hash;
+async function update(id) {
+	const style = styles.get(id);
 
 	const css = (await fetchText(style.url));
 
-	(await style.setSheet(css));
-	style.hash !== hash && (await Storage.set({ ['remote.css.'+ style.id]: css, }));
+	(await style.setSheet(css))
+	&& (await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
 }
 
-async function remove(style) {
-	const { id, url, } = style;
+async function remove(id) {
+	const style = styles.get(id), url = style.url;
 
-	(await Storage.remove('remote.css.'+ id));
+	(await Storage.remove('remote.cache.'+ id));
 	(await removeUrl(url));
 
-	(await style.options.resetAll());
+	(await (await style.options).resetAll());
 	style.destroy(); styles.delete(id);
 }
 
@@ -85,12 +80,23 @@ const queueUrlOp = op => new Promise((resolve, reject) => (running = running.the
 	resolve();
 } catch (error) { reject(error); } })));
 
+async function setDisabled(id, disabed) {
+	const style = styles.get(id);
+	if (style.disabled === disabed) { return; }
+	style.disabled = disabed;
+	(await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
+}
+
 return {
-	addFromUrl,
-	get styles() {
-		return Array.from(styles.values())
-		.sort((a, b) => a.url < b.url ? -1 : 1)
-		.map(_=>_.options.children);
+	add, update, remove,
+	async enable(id) { return setDisabled(id, false); },
+	async disable(id) { return setDisabled(id, true); },
+	async get() {
+		return (await Promise.all(
+			Array.from(styles.values())
+			.sort((a, b) => a.url < b.url ? -1 : 1)
+			.map(_=>_.options)
+		)).map(_=>_.children);
 	},
 };
 

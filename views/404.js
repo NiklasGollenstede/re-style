@@ -1,5 +1,4 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/es6lib/string': { escapeHtml, },
 	'node_modules/web-ext-utils/browser/': { manifest, },
 }) => ({ document: { body, }, history: { state, }, }, { name, }) => {
 
@@ -12,9 +11,8 @@ let message; switch (code) {
 	default:    message = `The page "${ name }" does not exist`; break;
 }
 
-body.innerHTML = `
-	<h1>${ +code || 404 }</h1>
-	<h3>${ escapeHtml(message) }</h3>
-`;
+body.innerHTML = `<h1 id="code"></h1><h3 id="message"></h3>`;
+body.querySelector('#code').textContent = code;
+body.querySelector('#message').textContent = message;
 
 }); })(this);
