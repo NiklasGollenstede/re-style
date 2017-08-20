@@ -1,7 +1,12 @@
 
-/* general */
+/**
+ * general
+ */
+
 * {
 	box-sizing: border-box;
+	transition-property: color, fill, background-color, border-color, box-shadow, opacity;
+	transition-duration: 0.21s;
 }
 body {
 	font-family: Segoe UI, Tahoma, sans-serif;
@@ -12,7 +17,9 @@ body {
 	height: 8px;
 }
 
-/* sizes and spacing */
+/**
+ * sizes and spacing
+ */
 
 .pref-name-id {
 	font-size: 125%;
@@ -36,9 +43,10 @@ body {
 .local input[data-id="remove"]
 { display: none; }
 
+/**
+ * inputs
+ */
 
-
-/* inputs */
 input {
 	border-style: solid;
 	border-width: 1px;
@@ -46,16 +54,11 @@ input {
 	border-radius: 3px;
 	padding: 2px 7px;
 	height: 25px;
+	font-size: 110%;
 }
 input:focus, input:active:focus {
 	outline: none;
 }
 input:active:focus {
 	transition-delay: 0.06s;
-}
-
-/* transitions */
-* {
-	transition-property: color, fill, background-color, border-color, box-shadow, opacity;
-	transition-duration: 0.21s;
 }

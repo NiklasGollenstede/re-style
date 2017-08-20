@@ -1,5 +1,6 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, },
+	'node_modules/web-ext-utils/browser/version': { firefox, },
 	'node_modules/web-ext-utils/options/': Options,
 }) => {
 const isBeta = (/^\d+\.\d+.\d+(?!$)/).test((global.browser || global.chrome).runtime.getManifest().version); // version doesn't end after the 3rd number ==> bata channel
@@ -61,14 +62,14 @@ const model = {
 		description: `You can load local files as user styles.
 		Styles matching normal content pages should be re-applied immediately when the files are saved.<br>
 		To apply changes to any of the values below, dis- then enable this option`,
-		default: true,
+		default: firefox, hidden: !firefox,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
 		children: {
-			name: {
+			folder: {
 				title: 'Local folder',
 				description: `All <abbr title="Files or folders starting with a '.' (dot) are considered hidden">non-hidden</abbr> files in this folder and its subfolders ending with <code>.css</code> are applied as user styles.`,
-				default: [ 'C:/dev/stylish/', ],
+				default: [ ((/windows/i).test(global.navigator.oscpu) ? 'C:' : '~') +'/dev/user-styles/', ],
 				restrict: { type: 'string', },
 				input: { type: 'string', },
 			},

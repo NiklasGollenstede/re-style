@@ -8,7 +8,8 @@ function get(api, ...args) { return new Promise((resolve, reject) => api(...args
 const cb2watcher = new WeakMap;
 
 async function readStyles(dir, onChange) {
-	dir = dir.replace(/\\/g, '/'); const data = { }, mtime = { };
+	dir = dir.replace(/\\/g, '/').replace(/^~/, () => require('os').homedir());
+	const data = { }, mtime = { };
 	(await (async function read(dir) {
 		for (const name of (await get(FS.readdir, dir))) {
 			// console.log('check', dir, name);

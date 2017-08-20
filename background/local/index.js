@@ -17,7 +17,7 @@ async function enable() {
 	native = (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
 	// native.addHandler('log', console.log.bind(console, 'native log'));
 
-	const files = (await native.request('readStyles', 'C:/dev/stylish/', onCange));
+	const files = (await native.request('readStyles', options.local.children.folder.value, onCange));
 	native.afterEnded('release', onCange);
 
 	// console.log('got local styles', files);
