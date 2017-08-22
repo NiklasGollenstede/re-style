@@ -38,7 +38,7 @@ const model = {
 		<code>userCrome.css</code> (e.g. for the UI) and <code>userContent.css</code> (e.g. for about:-pages).<br>
 		NOTE: This overwrites all previous content and all changes to those files.<br>
 		NOTE: The browser must be restarted for changes to those files to apply.`,
-		default: true,
+		default: firefox, hidden: !firefox,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
 		children: {
@@ -62,14 +62,14 @@ const model = {
 		description: `You can load local files as user styles.
 		Styles matching normal content pages should be re-applied immediately when the files are saved.<br>
 		To apply changes to any of the values below, dis- then enable this option`,
-		default: firefox, hidden: !firefox,
+		default: true,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
 		children: {
 			folder: {
 				title: 'Local folder',
 				description: `All <abbr title="Files or folders starting with a '.' (dot) are considered hidden">non-hidden</abbr> files in this folder and its subfolders ending with <code>.css</code> are applied as user styles.`,
-				default: [ ((/windows/i).test(global.navigator.oscpu) ? 'C:' : '~') +'/dev/user-styles/', ],
+				default: [ ((/\(Windows/i).test(global.navigator.userAgent) ? 'C:' : '~') +'/dev/user-styles/', ],
 				restrict: { type: 'string', },
 				input: { type: 'string', },
 			},

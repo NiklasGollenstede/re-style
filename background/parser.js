@@ -2,45 +2,43 @@
 	'node_modules/regexpx/': RegExpX,
 }) => {
 
-function parseStyle(css, { minify = true, } = { }) {
+function parseStyle(css, { onerror = error => console.warn('CSS parsing error', error), } = { }) {
 	const tokens = tokenize(css);
 
-	let namespace = '';
-	const declarations = [ ];
-	const sections = [ ];
-	const globalTokens = [ ];
+	let namespace = '', meta = { };
+	const sections = [ ], globalTokens = [ ];
 
-	for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
+	loop: for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
 		case '@namespace': {
 			const end = tokens.indexOf(';', index);
-			if (end < 0) { throw new Error(`Missing ; in namespace declaration`); }
-			const parts = tokens.slice(index + 1, end).filter(_=>!(/^\s*$/).test(_));
-			index += parts.length + 2;
+			if (end < 0) { onerror(Error(`Missing ; in namespace declaration`)); break loop; }
+			const parts = tokens.slice(index + 1, end).filter(_=>!(/^\s*$|^\/\*/).test(_));
 			switch (parts.length) {
 				case 0: break; // or throw?
 				case 1: namespace = parts[0]; break;
-				default: declarations.push('@namespace '+ parts.join(' ') +';');
+				default: globalTokens.push('@namespace', ...tokens.slice(index + 1, end), ';');
 			}
+			index = end +1;
 		} break;
 		case '@document': case '@-moz-document': {
 			const start = tokens.indexOf('{', index);
-			if (start < 0) { throw new Error(`Missing block after @document declaration`); }
+			if (start < 0) { onerror(new Error(`Missing block after @document declaration`)); break loop; }
 			const parts = tokens.slice(index +1, start).filter(_=>!(/^\s*$|^,$|^\/\*/).test(_));
-			const patterns = parts.map(decl => {
+			const urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ];
+			parts.forEach(decl => {
 				const match = rUrlRule.exec(decl);
-				if (!match) { throw new Error(`Can't parse @document rule \`\`\`${ decl }´´´`); }
-				const { type, string, raw = string.replace(/\\+/g, _ => '\\'.repeat(Math.ceil(_.length / 2))), } = match;
+				if (!match) { onerror(Error(`Can't parse @document rule \`\`\`${ decl }´´´`)); }
+				const { type, string, raw = evalString(string), } = match;
 				switch (type) {
-					case 'url': return RegExpX`^${ raw }$`;
-					case 'url-prefix': return RegExpX`^${ raw }.*$`;
-					case 'domain': return RegExpX`^https?://(?:[^/]*.)?${ raw }(?:$|/.*$)`;
-					case 'regexp': return new RegExp(`^${ raw }$`);
-					default: throw new Error(`Unrecognized @document rule ${ type }`);
+					case 'url': urls.push(raw); break;
+					case 'url-prefix': urlPrefixes.push(raw); break;
+					case 'domain': domains.push(raw); break;
+					case 'regexp': regexps.push(raw); break;
+					default: onerror(new Error(`Unrecognized @document rule ${ type }`));
 				}
 			});
 			const end = skipBlock(tokens, start);
-			const code = (minify ? minifyTokens(tokens.slice(start +1, end)) : tokens.slice(start +1, end)).join('');
-			sections.push({ patterns, code, });
+			sections.push(new Section(urls, urlPrefixes, domains, regexps, '', tokens.slice(start +1, end)));
 			index = end +1;
 		} break;
 		case '{': case '(': {
@@ -55,46 +53,137 @@ function parseStyle(css, { minify = true, } = { }) {
 		}
 	} }
 
-	const prefix = (namespace ? '@namespace '+ namespace +';' : '') + declarations.join('');
-	const globalCode = (minify ? minifyTokens(globalTokens) : globalTokens).join('');
-	sections.forEach(_ => (_.code = prefix + _.code));
+	globalTokens.length && sections.unshift(new Section([ ], [ ], [ ], [ ], '', globalTokens));
 
-	return {
-		namespace,
-		declarations,
-		sections,
-		globalCode,
-	};
+
+	if ((/^\/\*\*? ?==[Uu]ser-?[Ss]tyle==\s/).test(tokens[0])) {
+		meta = parseMetaBlock(tokens[0]);
+	} else {
+		let name; globalTokens.some(token => (/^\/\*/).test(token) && (/^\ ?\*\ ?@name\ (.*)/m).test(token) && (name = (/^\ ?\*\ ?@name\ (.*)/m).exec(token)[1]));
+		name && (meta.name = name);
+	}
+
+	return new Sheet(meta, sections, namespace);
 }
 
-const rNonEscape = RegExpX`(?:
-	  [^\\]         # something that's not a backslash
-	| \\ [^\\]      # a backslash followed by something that's not, so the backslash is consumed
-	| (?: \\\\ )*   # an even number of backslashes
-)*?`;
-const rUrlRule = RegExpX`
-	(?<type> url(?:-prefix)?|domain|regexp ) \s* \( (?:
-		  ' (?<string> ${ rNonEscape }) '
-		| " (?<string> ${ rNonEscape }) "
-		| (?<raw> .*? )
-	) \)
-`;
-const rTokens = RegExpX('gs')`
-	  @namespace
-	| @(?:-moz-)document
-	| ${ rUrlRule }
-	| [{}();]
-	| \/\* .*? (?: \*\/ | $ ) # comments
-	| ' ${ rNonEscape } ' | " ${ rNonEscape } " # strings
-	| \s+ # whitespaces
-	| [\w-]+ # words
-	| . # others
-`;
+class Sheet {
+	static fromCode(code, options) { return parseStyle(code, options); }
+
+	constructor(meta, sections, namespace) {
+		this.meta = meta;
+		this.sections = sections;
+		this.namespace = namespace;
+	}
+
+	cloneWithSections(sections) { return new Sheet(this.meta, sections, this.namespace); }
+
+	static fromUserstylesOrg({ sections, name, namespace = '', }) {
+		sections = sections.map(({ urls, urlPrefixes, domains, regexps, code, }) => {
+			// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
+			// but e.g. to compare them against actual URLs, their escapes need to be evaluated
+			urls = urls.map(evalString); urlPrefixes = urlPrefixes.map(evalString);
+			domains = domains.map(evalString); regexps = regexps.map(evalString);
+
+			if (urls.length + urlPrefixes.length + domains.length + regexps.lenght === 0) {
+				return new Section(urls, urlPrefixes, domains, regexps, code);
+			} else {
+				const tokens = tokenize(code);
+				for (let index = 0; index < tokens.length; ++index) {
+					if (tokens[index] !== '@namespace') { continue; }
+					const end = tokens.indexOf(';', index);
+					if (index < 0) { break; }
+					const parts = tokens.slice(index + 1, end).filter(_=>!(/^\s*$|^\/\*/).test(_));
+					if (parts.length === 1) { namespace = parts[0]; }
+				}
+				return new Section(urls, urlPrefixes, domains, regexps, '', tokens);
+			}
+		});
+		return new Sheet({ name, }, sections, namespace);
+	}
+
+	toString({ namespace = true, minify = false, /*important = false,*/ } = { }) {
+		return (
+			namespace && this.namespace ? '@namespace '+ this.namespace +';' : ''
+		) + this.sections.map(
+			_=>_.toString(arguments[0])
+		).join(minify ? '' : '\n\n');
+	}
+
+	toJSON() { return this; }
+
+	static fromJSON({ meta, sections, namespace, }) {
+		return new Sheet(meta, sections, namespace);
+	}
+}
+
+class Section {
+	constructor(urls, urlPrefixes, domains, regexps, code, tokens = null) {
+		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
+		this.code = code; this.tokens = tokens;
+	}
+
+	cloneWithoutIncludes() { return new Section([ ], [ ], [ ], [ ], this.code, this.tokens); }
+
+	isEmpty() {
+		!this.tokens && (this.tokens = tokenize(this.code));
+		return !this.tokens.some(_=>!(/^\s*$|^\/\*/).test(_));
+	}
+
+	toString({ minify = false, important = false, } = { }) {
+		let { tokens, code, } = this;
+		important && !tokens && (tokens = this.tokens = tokenize(code));
+		minify && tokens && (tokens = minifyTokens(this.tokens.slice()).filter(_=>_));
+		important && (tokens = addImportants(tokens));
+		minify && !tokens && (code = code.replace(/\s+/g, ' '));
+		tokens && (code = tokens.join(''));
+
+		if (this.urls.length + this.urlPrefixes.length + this.domains.length + this.regexps.length === 0) { return code; }
+
+		return '@-moz-document'+ (minify ? ' ' : '\n\t') + [
+			...this.urls.map(raw => `url(${JSON.stringify(raw)})`),
+			...this.urlPrefixes.map(raw => `url-prefix(${JSON.stringify(raw)})`),
+			...this.domains.map(raw => `domain(${JSON.stringify(raw)})`),
+			...this.regexps.map(raw => `regexp(${JSON.stringify(raw)})`),
+		].join(minify ? ',' : ',\n\t')
+		+ (minify ? '' : '\n') +'{'+ code +'}';
+	}
+
+	toJSON() { return this; }
+
+	static fromJSON({ urls, urlPrefixes, domains, regexps, code, tokens, }) {
+		return new Section(urls, urlPrefixes, domains, regexps, code, tokens);
+	}
+}
+
 function tokenize(css) {
 	const tokens = [ ];
 	css.replace(rTokens, token => (tokens.push(token), ''));
 	return tokens;
 }
+const rNonEscape = RegExpX('n')`(
+	  [^\\]         # something that's not a backslash
+	| \\ [^\\]      # a backslash followed by something that's not, so the backslash is consumed
+	| ( \\\\ )*     # an even number of backslashes
+)*?`;
+const rUrlRule = RegExpX('n')`
+	(?<type> url(-prefix)?|domain|regexp ) \s* \( (
+		  ' (?<string> ${ rNonEscape }) '
+		| " (?<string> ${ rNonEscape }) "
+		| (?<raw> .*? )
+	) \)
+`;
+const rTokens = RegExpX('gns')`
+	  @namespace\b
+	| @(-moz-)?document\b
+	| ${ rUrlRule }
+	| [{}();]
+	| \/\* .*? ( \*\/ | $ ) # comments
+	| ' ${ rNonEscape } ' | " ${ rNonEscape } " # strings
+	| !important\b
+	| \s+ # whitespaces
+	| [\w-]+ # words
+	| . # others
+`;
 
 function minifyTokens(input) {
 	if (comment(input[0])) { input[0] = ''; }
@@ -134,9 +223,51 @@ function skipBlock(tokens, index) {
 	throw new Error(`missing closing bracket, expected ${ done } got EOF`);
 }
 
-return {
-	parseStyle,
-	tokenize,
-};
+function addImportants(tokens) {
+	const out = [ ];
+	let hadColon = false;
+	for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
+		case ':': {
+			const word = tokens[((/\s+/).test(tokens[index - 1]) ? index - 2 : index - 1)];
+			hadColon = !!word;
+			// hadColon = word && !word.startsWith('--'); // !important is not allowed after variable definitions
+		} break;
+		case '{': case '}': hadColon = false; break;
+		case '(': {
+			const end = skipBlock(tokens, index);
+			out.push(...tokens.slice(index, index = end));
+		} break;
+		case ';': {
+			hadColon && tokens[((/\s+/).test(tokens[index - 1]) ? index - 2 : index - 1)] !== '!important'
+			&& out.push(' ', '!important'); hadColon = false;
+		} break;
+	} out.push(tokens[index]); }
+	return out;
+}
+
+function evalString(string) {
+	// TODO: this ignores all meaningful escapes except `/` (there shouldn't be any, since URLs don't support them either, but still)
+	return string.replace(/\\+/g, _ => '\\'.repeat(Math.ceil(_.length / 2)));
+}
+
+function parseMetaBlock(block) {
+	const entries = block.split(/^\ ?\*\ ?@(?=\w)/gm).slice(1);
+	const meta = { };
+	for (const entry of entries) {
+		const name = (/^\w+/).exec(entry)[0];
+		switch (name) {
+			case 'name': case 'author': case 'license': case 'licence': {
+				meta[name === 'licence' ? 'license' : name] = (/^\ ?.*/).exec(entry.slice(name.length))[0].trim();
+			} break;
+			case 'description': {
+				meta.description = entry.slice(name.length).replace(/^\ ?\*?\ {0,5}/gm, '').trim();
+			}
+		}
+	}
+	return meta;
+}
+
+Sheet.Section = Section;
+return Sheet;
 
 }); })(this);

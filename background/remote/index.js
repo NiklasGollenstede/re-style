@@ -39,9 +39,9 @@ async function add(url) {
 async function update(id) {
 	const style = styles.get(id);
 
-	const css = (await fetchText(style.url));
+	const code = (await fetchText(style.url));
 
-	(await style.setSheet(css))
+	(await style.setSheet((/^https:\/\/userstyles\.org\/styles\/chrome\/\d+\.json(?:$|\?)/).test(style.url) ? JSON.parse(code) : code))
 	&& (await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
 }
 

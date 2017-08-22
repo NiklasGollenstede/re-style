@@ -9,7 +9,7 @@
 	'./chrome/': ChromeStyle,
 	'./local/': Local,
 	'./remote/': Remote,
-	ContentStyle,
+	'./web/': ContentStyle,
 	Parser,
 	module,
 	require,
