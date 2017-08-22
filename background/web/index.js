@@ -1,7 +1,6 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { WebNavigation, Tabs, },
 	'node_modules/web-ext-utils/browser/version': { blink, gecko, },
-	'../util': { debounceIdle, },
 }) => {
 
 class ContentStyle {
@@ -29,14 +28,14 @@ class ContentStyle {
 
 const toAdd = new Set, toRemove = new Set, styles = new Set;
 
-const refresh = debounceIdle(async() => {
+async function refresh() {
 	const frames = [ ];
 	(await Promise.all((await Tabs.query({ })).map(async ({ id: tabId, }) => {
 		const inTab = (await WebNavigation.getAllFrames({ tabId, }));
 		if (!inTab.length || !isScripable(inTab[0].url)) { return; }
 		inTab.forEach(({ frameId, url, parentFrameId, }) => isScripable(url) && frames.push({ tabId, frameId, parentFrameId, url, }));
 	})).catch(() => null));
-	console.log('got frames', frames);
+	// console.log('got frames', frames);
 
 	frames.forEach(({ tabId, frameId, url, }) => {
 		void url;
@@ -46,8 +45,9 @@ const refresh = debounceIdle(async() => {
 		toRemove.forEach(code => Tabs.removeCSS(tabId, { code, frameId, }));
 	});
 	toAdd.clear(); toRemove.clear();
-}, 300);
+}
 
+// TODO: only listen while styles.size > 0
 WebNavigation.onCommitted.addListener(({ tabId, frameId, url, }) => {
 	isScripable(url) && styles.forEach(({ code, }) => Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', }));
 });

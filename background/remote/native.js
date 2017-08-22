@@ -11,13 +11,17 @@ port.addHandler(async function fetchText(url) { return new Promise((resolve, rej
 		default: throw new Error(`Unsupported protocol ${ url.protocol }`);
 	}
 	http.get(url, (response) => { try {
+		const type = response.headers['content-type'];
 		if (response.statusCode !== 200) {
 			response.resume(); // consume response data to free up memory
 			throw new Error(`Status Code: ${ response.statusCode }`);
 		}
+		if (!(/^(?:text\/css|application\/json)$/).test(type)) {
+			throw new TypeError(`Unexpected MIME-Type: ${ type }`);
+		}
 		response.setEncoding('utf8');
 		let data = ''; response.on('data', chunk => (data += chunk));
-		response.on('end', () => resolve(data));
+		response.on('end', () => resolve({ data, type, }));
 	} catch (error) { reject(error); } }).on('error', reject);
 }); });
 

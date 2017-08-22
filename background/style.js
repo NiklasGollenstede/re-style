@@ -60,18 +60,19 @@ class Style {
 
 	/* async */ get options() {
 		const self = Self.get(this);
-		if (self.options) { return self.options; }
-		return (self._options = new Options({ model: self.getOptionsModel(), prefix: self.id, }));
+		if (self.options) { return self.options.then(_=>_.children); }
+		return (self.options = new Options({ model: self.getOptionsModel(), prefix: self.id, })).then(_=>_.children);
 	}
 
 	toJSON() {
 		const self = Self.get(this);
-		return { type: 'Style',
+		const json = {
 			url: self.url, id: self.id, code: self.code, hash: self.hash, name: self.name,
 			include: self.include.map(_=>_.source), disabled: self.disabled,
 			chrome: self.chrome, web: self.web,
-			_sheet: self._sheet,
 		};
+		Object.defineProperty(json, '_sheet', { value: self._sheet, });
+		return json;
 	}
 
 	static fromJSON({ url, id, code, hash, name, include, disabled, chrome, web, }) {
@@ -118,6 +119,11 @@ class _Style {
 				default: name,
 				restrict: { type: 'string', },
 				input: { type: 'string', default: name, },
+			},
+			query: {
+				default: '',
+				restrict: { type: 'string', },
+				hidden: true,
 			},
 			controls: { default: true, input: [
 				{ type: 'control', id: 'enable',   label: 'Enable', },
@@ -209,10 +215,10 @@ class _Style {
 
 		if (meta.name && meta.name !== this.name) {
 			this.name = meta.name;
-			if (this.options && !this.options.children.name.values.isSet) {
-				// TODO: this doesn't work
-				this.options.children.name.value = ''; this.options.children.name.reset();
-			}
+			this.options && this.options.then(options => {
+				if (options.children.name.values.isSet) { return; }
+				options.children.name.value = ''; options.children.name.reset();
+			});
 		}
 	}
 
@@ -223,10 +229,11 @@ class _Style {
 		this.web && this.web.destroy(); this.web = null;
 	}
 
-	destroy() {
+	destroy(final) {
 		if (!this.id) { return; }
 		this.disable();
-		this.options && this.options.destroy(); this.options = null;
+		final && this.options && this.options.then(_=>_.resetAll());
+		this.options && this.options.then(_=>_.destroy()); this.options = null;
 		this.url = this.id = this.hash = '';
 	}
 }

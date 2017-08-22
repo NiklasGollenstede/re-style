@@ -11,38 +11,56 @@
 const urlList = options.remote.children.urls.values; const styles = new Map/*<id, Style>*/;
 
 { // load existing
-	(await Promise.all(
-		(await Promise.all(urlList.current.map(url => Style.url2id(url))))
-		.map(id => 'remote.cache.'+ id)
-		.map(key => Storage.get(key).then(_=>_[key]))
-	)).forEach(stored => {
-		const style = Style.fromJSON(stored);
-		styles.set(style.id, style);
-	});
+	const actions = [ ];
+	(await Promise.all(urlList.current.map(async url => { try {
+		const id = (await Style.url2id(url));
+		const key = 'remote.cache.'+ id;
+		const stored = (await Storage.get(key))[key];
+		if (stored) {
+			actions.push(() => styles.set(id, Style.fromJSON(stored)));
+		} else {
+			const style = (await new Style(url, ''));
+			styles.set(style.id, style);
+			style.disabed = true;
+			(await update(style.id));
+			actions.push(() => (style.enabled = true));
+		}
+	} catch (error) { reportError(`Failed to restore Style ${ url }`); } })));
+
+	// enable all styles at once to allow later optimizations
+	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore Style`); } });
 }
 
-options.remote.children.updateNow.onChange(resetAndReport(() => {
-	Promise.all(Array.from(styles.values(), style => update(style))).catch(reportError);
-}));
-
-async function add(url) {
+async function add(/*url*/) {
+	const [ , url, query = '', ] = (/^(.*?)(?:$|\?(.*))/).exec(arguments[0]);
 	if (urlList.current.includes(url)) { throw new Error(`URL ${ url } is already loaded as a style`); }
 
 	const style = (await new Style(url, ''));
 	styles.set(style.id, style);
-	(await update(style.id));
+	query && ((await style.options).query.value = query);
+	(await update(style.id, query));
 
 	(await insertUrl(url));
 	return style.id;
 }
 
-async function update(id) {
+async function update(id, query) {
 	const style = styles.get(id);
+	query = query || (await style.options).query.value;
 
-	const code = (await fetchText(style.url));
+	const { data, type, } = (await fetchText(style.url + (query ? query.replace(/^\??/, '?') : '')));
 
-	(await style.setSheet((/^https:\/\/userstyles\.org\/styles\/chrome\/\d+\.json(?:$|\?)/).test(style.url) ? JSON.parse(code) : code))
-	&& (await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
+	let changed = false; if (!(/^text\/css$/).test(type)) {
+		const json = JSON.parse(data);
+		// TODO: should do some basic data validation
+		changed = (await style.setSheet(json));
+	} else if (!(/^application\/json$/).test(type)) {
+		changed = (await style.setSheet(data));
+	} else {
+		throw new TypeError(`Unexpected MIME-Type ${ type } for style ${ style.name }`);
+	}
+
+	changed && (await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
 }
 
 async function remove(id) {
@@ -51,23 +69,28 @@ async function remove(id) {
 	(await Storage.remove('remote.cache.'+ id));
 	(await removeUrl(url));
 
-	(await (await style.options).resetAll());
-	style.destroy(); styles.delete(id);
+	style.destroy(true); styles.delete(id);
 }
 
-function resetAndReport(action) { return async function(_, __, { values, }) {
-	if (!values.isSet) { return; } values.reset();
-	try { (await action.apply(null, arguments)); } catch (error) { reportError(error); }
-}; }
+async function updateAll() {
+	const updated = [ ], failed = [ ];
+	(await Array.from(styles.values(),
+		style => update(style.id).then(() => updated.push(style))
+		.catch(error => { console.error(error); failed.push(style); })
+	));
+	return { updated, failed, };
+}
 
 async function fetchText(url) {
 	if (!options.remote.children.fetchWithNode.value) {
-		return (await global.fetch(url)).text();
+		const reply = (await global.fetch(url));
+		const type = reply.headers.get('content-type');
+		return { data: (await reply.text()), type, };
 	} else {
 		const native = (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
-		const text = (await native.request('fetchText', url));
+		const reply = (await native.request('fetchText', url));
 		native.destroy();
-		return text;
+		return reply;
 	}
 }
 
@@ -88,15 +111,15 @@ async function setDisabled(id, disabed) {
 }
 
 return {
-	add, update, remove,
+	add, update, updateAll, remove,
 	async enable(id) { return setDisabled(id, false); },
 	async disable(id) { return setDisabled(id, true); },
 	async get() {
-		return (await Promise.all(
+		return Promise.all(
 			Array.from(styles.values())
 			.sort((a, b) => a.url < b.url ? -1 : 1)
 			.map(_=>_.options)
-		)).map(_=>_.children);
+		);
 	},
 };
 

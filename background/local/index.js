@@ -65,11 +65,11 @@ return {
 	disable(id) { styles.get(id).disabled = true; },
 	_get() { return Array.from(styles.values()).sort((a, b) => a.url < b.url ? -1 : 1); },
 	async get() {
-		return (await Promise.all(
+		return Promise.all(
 			Array.from(styles.values())
 			.sort((a, b) => a.url < b.url ? -1 : 1)
 			.map(_=>_.options)
-		)).map(_=>_.children);
+		);
 	},
 };
 

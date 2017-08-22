@@ -29,7 +29,7 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 		const urls = string.trim().split(/\s+/g);
 		const failed = [ ];
 
-		(await Promise.all(urls.map(url => Remote.add(mapUrl(url)).catch(error => {
+		(await Promise.all((await Promise.all(urls.map(_=>mapUrl(_)))).map(url => Remote.add(url).catch(error => {
 			failed.push(url); console.error('Import error', error);
 		}))));
 
@@ -40,8 +40,14 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 			: reportError(`Failed to import:`, failed[0], failed[1], `and ${ failed.length - 2 } more styles`)
 		);
 	} break;
-	case 'update': throw new Error(`Not implemented`);
-
+	case 'updateNow': {
+		const { updated, failed, } = (await Remote.updateAll());
+		updated.length > 0 && reportSuccess('Update done', `Updated ${ updated.length } styles`);
+		failed.length && (failed.length < 4
+			? reportError(`Failed to update:`, ...failed.map(_=>_.url))
+			: reportError(`Failed to update:`, failed[0].url, failed[1].url, `and ${ failed.length - 2 } more styles`)
+		);
+	} break;
 	default: {
 		throw new Error('Unhandled command "'+ name +'"');
 	}
