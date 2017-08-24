@@ -183,7 +183,7 @@ class _Style {
 				let isWeb = true;
 				if (chromeUrlPrefixes .some(prefix => url.startsWith(prefix) || prefix.startsWith(url))) { chrome .urlPrefixes.push(url); isWeb = false; }
 				if (contentUrlPrefixes.some(prefix => url.startsWith(prefix) || prefix.startsWith(url))) { content.urlPrefixes.push(url); isWeb = false; }
-				isWeb && web.urls.push(url);
+				isWeb && web.urlPrefixes.push(url);
 			});
 
 			// this is not going to be accurate (and therefore not exclusive)
