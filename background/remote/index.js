@@ -20,15 +20,24 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 			actions.push(() => styles.set(id, Style.fromJSON(stored)));
 		} else {
 			const style = (await new Style(url, ''));
-			styles.set(style.id, style);
-			style.disabed = true;
+			styles.set(style.id, style); style.onChanged(onChanged);
+			style.disabled = true;
 			(await update(style.id));
-			actions.push(() => (style.enabled = true));
+			actions.push(() => (style.disabled = false));
 		}
-	} catch (error) { reportError(`Failed to restore Style ${ url }`); } })));
+	} catch (error) { reportError(`Failed to restore Style`, url, error); } })));
+
+	if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } // sync with ../local/
+	else { (await Promise.race([ new Promise(done => (global.__startupSyncPoint__ = done)), require.async('../local/'), ])); }
 
 	// enable all styles at once to allow later optimizations
-	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore Style`); } });
+	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore Style`, error); } });
+
+	styles.forEach(_=>_.onChanged(onChanged));
+}
+
+function onChanged(style) {
+	Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), });
 }
 
 async function add(/*url*/) {
@@ -36,8 +45,8 @@ async function add(/*url*/) {
 	if (urlList.current.includes(url)) { throw new Error(`URL ${ url } is already loaded as a style`); }
 
 	const style = (await new Style(url, ''));
-	styles.set(style.id, style);
-	query && ((await style.options).query.value = query);
+	styles.set(style.id, style); style.onChanged(onChanged);
+	query && (style.options.query.value = query);
 	(await update(style.id, query));
 
 	(await insertUrl(url));
@@ -46,7 +55,7 @@ async function add(/*url*/) {
 
 async function update(id, query) {
 	const style = styles.get(id);
-	query = query || (await style.options).query.value;
+	query = query || style.options.query.value;
 
 	const { data, type, } = (await fetchText(style.url + (query ? query.replace(/^\??/, '?') : '')));
 
@@ -59,8 +68,6 @@ async function update(id, query) {
 	} else {
 		throw new TypeError(`Unexpected MIME-Type ${ type } for style ${ style.name }`);
 	}
-
-	changed && (await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
 }
 
 async function remove(id) {
@@ -103,10 +110,10 @@ const queueUrlOp = op => new Promise((resolve, reject) => (running = running.the
 	resolve();
 } catch (error) { reject(error); } })));
 
-async function setDisabled(id, disabed) {
+async function setDisabled(id, disabled) {
 	const style = styles.get(id);
-	if (style.disabled === disabed) { return; }
-	style.disabled = disabed;
+	if (style.disabled === disabled) { return; }
+	style.disabled = disabled;
 	(await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
 }
 
@@ -114,13 +121,7 @@ return {
 	add, update, updateAll, remove,
 	async enable(id) { return setDisabled(id, false); },
 	async disable(id) { return setDisabled(id, true); },
-	async get() {
-		return Promise.all(
-			Array.from(styles.values())
-			.sort((a, b) => a.url < b.url ? -1 : 1)
-			.map(_=>_.options)
-		);
-	},
+	get() { return Array.from(styles.values()).sort((a, b) => a.url < b.url ? -1 : 1); },
 };
 
 }); })(this);

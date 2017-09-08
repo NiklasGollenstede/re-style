@@ -21,9 +21,9 @@ document.head.appendChild(createElement('style', [ css, ]));
 
 	const entries = (await Types[type].get());
 
-	entries.forEach(options => new Editor({
+	entries.forEach(({ options, }) => new Editor({
 		options, onCommand,
-		host: list.appendChild(createElement('form', { id: options.id.value, })),
+		host: list.appendChild(createElement('div', { id: options.id.value, })),
 	}));
 
 	async function onCommand({ /*name,*/ parent, }, buttonId) { try {

@@ -21,6 +21,10 @@ body {
  * sizes and spacing
  */
 
+.options-host {
+	margin: 7px;
+}
+
 .pref-name-id {
 	font-size: 125%;
 }
@@ -31,8 +35,8 @@ body {
 }
 
 .pref-name-name input {
-	width: 400px;
-	max-width: calc(100vw - 40px);
+	width: 380px;
+	max-width: calc(100vw - 45px);
 	margin-right: 10px;
 }
 .pref-name-controls input {

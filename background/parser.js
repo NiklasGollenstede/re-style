@@ -27,14 +27,14 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 			const urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ];
 			parts.forEach(decl => {
 				const match = rUrlRule.exec(decl);
-				if (!match) { onerror(Error(`Can't parse @document rule \`\`\`${ decl }´´´`)); }
+				if (!match) { onerror(Error(`Can't parse @document rule \`\`\`${ decl }´´´`)); return; }
 				const { type, string, raw = evalString(string), } = match;
 				switch (type) {
 					case 'url': urls.push(raw); break;
 					case 'url-prefix': urlPrefixes.push(raw); break;
 					case 'domain': domains.push(raw); break;
 					case 'regexp': regexps.push(raw); break;
-					default: onerror(new Error(`Unrecognized @document rule ${ type }`));
+					default: onerror(new Error(`Unrecognized @document rule ${ type }`)); return;
 				}
 			});
 			const end = skipBlock(tokens, start);

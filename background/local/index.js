@@ -7,11 +7,13 @@
 	require,
 }) => {
 let native = null/*Port*/; const styles = new Map/*<id, Style>*/; let exclude = null/*RegExp*/;
-let active = false; options.local.whenChange(async ([ value, ]) => { try { (await (value ? enable() : disable())); } catch (error) { reportError(error); } });
+let active = options.local.value; options.local.onChange(async ([ value, ]) => { try { (await (value ? enable() : disable())); } catch (error) { reportError(error); } });
 let unloading = false; global.addEventListener('unload', () => (unloading = true));
 
-async function enable() {
-	if (active) { return; } active = options.local.value = true;
+if (active) { (await enable(true)); } else { if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } else { global.__startupSyncPoint__ = () => null; } }
+
+async function enable(init) {
+	if (active && !init) { return; } active = options.local.value = true;
 	// console.log('enable local styles');
 	exclude = new RegExp(options.local.children.exclude.value || '^.^');
 	native = (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
@@ -22,13 +24,22 @@ async function enable() {
 
 	// console.log('got local styles', files);
 	(await Promise.all(
-		(await Promise.all(Object.keys(files).map(path => !exclude.test(path) && new Style(path, ''))))
-		.filter(_=>_).map(async style => {
+		(await Promise.all(Object.entries(files).map(async ([ path, sheet, ]) => { try {
+			if (exclude.test(path)) { return; }
+			const style = (await new Style(path, ''));
 			styles.set(style.id, style);
-			try { (await style.setSheet(files[style.url])); }
-			catch (error) { reportError(`Failed to add local style`, style.url, error); }
-		})
+			style.disabled = true;
+			(await style.setSheet(sheet));
+		} catch (error) { reportError(`Failed to add local style`, path, error); } })))
 	));
+
+	if (init) { // on initial enable, sync with ../remote/
+		if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); }
+		else { (await Promise.race([ new Promise(done => (global.__startupSyncPoint__ = done)), require.async('../local/'), ])); }
+		delete global.__startupSyncPoint__;
+	}
+
+	styles.forEach(style => { try { style.disabled = false; } catch (error) { reportError(`Failed to add local style`, error); } });
 
 	native.ended.then(() => global.setTimeout(() => {
 		!unloading && active && reportError('Connection to native extension lost');
@@ -63,14 +74,7 @@ return {
 	get _native() { return native; },
 	enable(id) { styles.get(id).disabled = false; },
 	disable(id) { styles.get(id).disabled = true; },
-	_get() { return Array.from(styles.values()).sort((a, b) => a.url < b.url ? -1 : 1); },
-	async get() {
-		return Promise.all(
-			Array.from(styles.values())
-			.sort((a, b) => a.url < b.url ? -1 : 1)
-			.map(_=>_.options)
-		);
-	},
+	get() { return Array.from(styles.values()).sort((a, b) => a.url < b.url ? -1 : 1); },
 };
 
 }); })(this);

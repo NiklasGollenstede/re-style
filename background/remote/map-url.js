@@ -5,7 +5,7 @@ async function mapUrl(url, tab) { switch (true) {
 		if (!tab) { return 'https://userstyles.org/styles/'+ (/\d+/).exec(url)[0] +'.css'; }
 		let query; try { query = (await
 			(await require.async('node_modules/web-ext-utils/loader/'))
-			.runInTab(tab.id, 0, readUserstylesOrgOptions)
+			.runInFrame(tab.id, 0, readUserstylesOrgOptions)
 		); } catch (error) { console.error(error); }
 		if (!query) { return 'https://userstyles.org/styles/'+ (/\d+/).exec(url)[0] +'.css'; }
 		return 'https://userstyles.org/styles/chrome/'+ (/\d+/).exec(url)[0] +'.css?'+ query;

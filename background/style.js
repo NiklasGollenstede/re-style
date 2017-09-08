@@ -1,5 +1,7 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+	'node_modules/web-ext-utils/browser/': { Storage, },
 	'node_modules/web-ext-utils/options/': Options,
+	'node_modules/web-ext-utils/utils/event': { setEvent, setEventGetter, },
 	'node_modules/regexpx/': RegExpX,
 	'./chrome/': ChromeStyle,
 	'./web/': WebStyle,
@@ -34,7 +36,23 @@ const toRegExp = {
 	regexps(raws) { return RegExpX`^${ raws.map(_=>RegExp(_)) }$`; },
 };
 
-const Self = new WeakMap;
+const sync = (await Storage.sync.get(null)); Object.keys(sync).forEach(key => !key.startsWith('style.') && delete sync[key]);
+Storage.onChanged.addListener((changes, area) => {
+	if (area !== 'sync') { return; }
+	Object.entries(changes).forEach(([ key, { newValue, }, ]) => {
+		if (!key.startsWith('style.')) { return; }
+		if (newValue === undefined) { delete sync[key]; } else { sync[key] = newValue; }
+		const style = styles.get((/^style\.([0-9a-f]+)\./).exec(key)[1]);
+		style && style.options.onChanged({ [key]: { newValue, }, });
+	});
+});
+const storage = {
+	get()    { return sync; },
+	set()    { return Storage.sync.set(...arguments); },
+	remove() { return Storage.sync.remove(...arguments); },
+};
+
+const Self = new WeakMap, styles = new Map;
 
 class Style {
 	constructor(url, code) {
@@ -45,23 +63,19 @@ class Style {
 
 	get url() { return Self.get(this).url; }
 	get id() { return Self.get(this).id; }
-	// get code() { return Self.get(this).code; }
-	// get hash() { return Self.get(this).hash; }
-	// get name() { return Self.get(this).name; }
-	// get include() { return Self.get(this).include; }
-	// get chrome() { return Self.get(this).chrome; }
-	// get web() { return Self.get(this).web; }
 
 	get disabled() { return Self.get(this).disabled; }
 	set disabled(value) {
 		const self = Self.get(this);
+		if (!!value === self.disabled) { return; }
 		self.disabled ? self.enable() : self.disable();
 	}
 
-	/* async */ get options() {
+	get options() { return Self.get(this).options.children; }
+
+	matches(url) {
 		const self = Self.get(this);
-		if (self.options) { return self.options.then(_=>_.children); }
-		return (self.options = new Options({ model: self.getOptionsModel(), prefix: self.id, })).then(_=>_.children);
+		return self.include.some(_=>_.test(url));
 	}
 
 	toJSON() {
@@ -79,10 +93,12 @@ class Style {
 		const _this = Object.create(Style.prototype);
 		const self = Object.create(_Style.prototype);
 		Self.set(self.public = _this, self);
-		self.url = url; self.id = id; self.code = code; self.hash = hash; self.name = name;
+		self.url = url; self.id = id; self.code = code; self.hash = hash; self.name = name; styles.set(self.id, self);
 		self.include = include.map(_=>RegExp(_)); self.disabled = disabled;
 		self.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
 		self.web = web ? WebStyle.fromJSON(web) : null;
+		self.options = new Options({ model: self.getOptionsModel(), prefix: 'style.'+ self.id, storage, });
+		fireChanged([ ]);
 		return _this;
 	}
 
@@ -90,6 +106,8 @@ class Style {
 
 	destroy() { Self.get(this).destroy(); }
 }
+const fireChanged = setEvent(Style, 'onChanged', { lazy: false, });
+setEventGetter(Style, 'changed', Self);
 
 class _Style {
 	constructor(self, url, code) { return (async () => {
@@ -100,7 +118,8 @@ class _Style {
 		this.disabled = false;
 
 		this.name = url.split(/[\/\\]/g).pop();
-		this.url = url; this.id = (await Style.url2id(url));
+		this.url = url; this.id = (await Style.url2id(url)); styles.set(this.id, this);
+		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
 
 		code && (await this.setSheet(code));
 		return self;
@@ -145,22 +164,28 @@ class _Style {
 		const hash = (await sha1(code));
 		if (hash === this.hash) { return false; }
 		this.code = code; this.hash = hash;
+
+		const { sections, } = this._sheet = typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code);
+		const include = [ ]; sections.forEach(section =>
+			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => section[type].length && include.push(toRegExp[type](section[type])))
+		);
+		if (this.include.splice(0, Infinity, ...include).length || include.length) { this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ ]); }
+
 		!this.disabled && this.enable();
 		return true;
 	}
 
-	// this function is called (only) when a style is being installed or re-enabled
+	// this function is called (only) when a style is being installed, updated or re-enabled
 	enable() {
 		this.disabled = false;
 
-		const sheet = this._sheet = typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code);
+		const sheet = this._sheet = this._sheet || (typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code));
 		const { sections, namespace, meta, } = sheet;
 
 		const isXul = rXulNs.test(namespace.replace(/\\(?!\\)/g, ''));
-		const userChrome = [ ], userContent = [ ], webContent = [ ], include = [ ];
+		const userChrome = [ ], userContent = [ ], webContent = [ ];
 		sections.forEach(section => {
 			const { urls, urlPrefixes, domains, regexps, } = section;
-			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => section[type].length && include.push(toRegExp[type](section[type])));
 
 			if (urls.length + urlPrefixes.length + domains.length + regexps.length === 0) {
 				if (section.isEmpty()) { return; } // TODO: this removes "global" comments
@@ -211,30 +236,29 @@ class _Style {
 			this.web && this.web.destroy(); this.web = web;
 		}
 
-		this.include.splice(0, Infinity, ...include);
-
 		if (meta.name && meta.name !== this.name) {
 			this.name = meta.name;
-			this.options && this.options.then(options => {
-				if (options.children.name.values.isSet) { return; }
-				options.children.name.value = ''; options.children.name.reset();
-			});
+			if (this.options.children.name.values.isSet) { return; }
+			this.options.children.name.value = ''; this.options.children.name.reset();
 		}
+
+		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ ]);
 	}
 
 	disable() {
-		this.disabled = true;
-		this.include.splice(0, Infinity);
+		if (this.disabled === true) { return; } this.disabled = true;
 		this.chrome && this.chrome.destroy(); this.chrome = null;
 		this.web && this.web.destroy(); this.web = null;
+		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ ]);
 	}
 
 	destroy(final) {
 		if (!this.id) { return; }
 		this.disable();
-		final && this.options && this.options.then(_=>_.resetAll());
-		this.options && this.options.then(_=>_.destroy()); this.options = null;
-		this.url = this.id = this.hash = '';
+		final && this.options && this.options.resetAll();
+		this.options && this.options.destroy(); this.options = null;
+		this.fireChanged && this.fireChanged(null, { last: true, });
+		styles.delete(this.id); this.url = this.id = this.hash = '';
 	}
 }
 
