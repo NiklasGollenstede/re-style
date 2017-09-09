@@ -8,7 +8,19 @@
 	require,
 }) => {
 
-const urlList = options.remote.children.urls.values; const styles = new Map/*<id, Style>*/;
+class RemoteStyle extends Style {
+	static async add(url) { return add(url); }
+
+	async update() { return update(this); }
+	async remove() { return remove(this); }
+
+	static fromJSON() { return Style.fromJSON.apply(this, arguments); }
+
+	static get(id) { return styles.get(id); }
+	static [Symbol.iterator]() { return styles[Symbol.iterator](); }
+}
+
+const urlList = options.remote.children.urls.values; const styles = new Map/*<id, RemoteStyle>*/;
 
 { // load existing
 	const actions = [ ];
@@ -17,21 +29,21 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 		const key = 'remote.cache.'+ id;
 		const stored = (await Storage.get(key))[key];
 		if (stored) {
-			actions.push(() => styles.set(id, Style.fromJSON(stored)));
+			actions.push(() => styles.set(id, RemoteStyle.fromJSON(stored)));
 		} else {
-			const style = (await new Style(url, ''));
+			const style = (await new RemoteStyle(url, ''));
 			styles.set(style.id, style); style.onChanged(onChanged);
 			style.disabled = true;
-			(await update(style.id));
+			(await update(style));
 			actions.push(() => (style.disabled = false));
 		}
-	} catch (error) { reportError(`Failed to restore Style`, url, error); } })));
+	} catch (error) { reportError(`Failed to restore remote style`, url, error); } })));
 
 	if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } // sync with ../local/
 	else { (await Promise.race([ new Promise(done => (global.__startupSyncPoint__ = done)), require.async('../local/'), ])); }
 
 	// enable all styles at once to allow later optimizations
-	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore Style`, error); } });
+	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore remote style`, error); } });
 
 	styles.forEach(_=>_.onChanged(onChanged));
 }
@@ -44,48 +56,38 @@ async function add(/*url*/) {
 	const [ , url, query = '', ] = (/^(.*?)(?:$|\?(.*))/).exec(arguments[0]);
 	if (urlList.current.includes(url)) { throw new Error(`URL ${ url } is already loaded as a style`); }
 
-	const style = (await new Style(url, ''));
+	const style = (await new RemoteStyle(url, ''));
 	styles.set(style.id, style); style.onChanged(onChanged);
 	query && (style.options.query.value = query);
-	(await update(style.id, query));
+	(await update(style, query));
 
 	(await insertUrl(url));
 	return style.id;
 }
 
-async function update(id, query) {
-	const style = styles.get(id);
+async function update(style, query) {
 	query = query || style.options.query.value;
 
 	const { data, type, } = (await fetchText(style.url + (query ? query.replace(/^\??/, '?') : '')));
 
-	let changed = false; if (!(/^text\/css$/).test(type)) {
+	if (!(/^text\/css$/).test(type)) {
 		const json = JSON.parse(data);
 		// TODO: should do some basic data validation
-		changed = (await style.setSheet(json));
+		(await style.setSheet(json));
 	} else if (!(/^application\/json$/).test(type)) {
-		changed = (await style.setSheet(data));
+		(await style.setSheet(data));
 	} else {
 		throw new TypeError(`Unexpected MIME-Type ${ type } for style ${ style.name }`);
 	}
 }
 
-async function remove(id) {
-	const style = styles.get(id), url = style.url;
+async function remove(style) {
+	const { id, url, } = style;
 
 	(await Storage.remove('remote.cache.'+ id));
 	(await removeUrl(url));
 
 	style.destroy(true); styles.delete(id);
-}
-
-async function updateAll() {
-	const updated = [ ], failed = [ ];
-	(await Array.from(styles.values(),
-		style => update(style.id).then(() => updated.push(style))
-		.catch(error => { console.error(error); failed.push(style); })
-	));
-	return { updated, failed, };
 }
 
 async function fetchText(url) {
@@ -110,18 +112,6 @@ const queueUrlOp = op => new Promise((resolve, reject) => (running = running.the
 	resolve();
 } catch (error) { reject(error); } })));
 
-async function setDisabled(id, disabled) {
-	const style = styles.get(id);
-	if (style.disabled === disabled) { return; }
-	style.disabled = disabled;
-	(await Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), }));
-}
-
-return {
-	add, update, updateAll, remove,
-	async enable(id) { return setDisabled(id, false); },
-	async disable(id) { return setDisabled(id, true); },
-	get() { return Array.from(styles.values()).sort((a, b) => a.url < b.url ? -1 : 1); },
-};
+return RemoteStyle;
 
 }); })(this);

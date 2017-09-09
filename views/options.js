@@ -41,7 +41,12 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 		);
 	} break;
 	case 'updateNow': {
-		const { updated, failed, } = (await Remote.updateAll());
+		const updated = [ ], failed = [ ];
+		(await Promise.all(Array.from(Remote,
+			([ , style, ]) => style.update().then(() => updated.push(style))
+			.catch(error => { console.error(error); failed.push(style); })
+		)));
+
 		updated.length > 0 && reportSuccess('Update done', `Updated ${ updated.length } styles`);
 		failed.length && (failed.length < 4
 			? reportError(`Failed to update:`, ...failed.map(_=>_.url))

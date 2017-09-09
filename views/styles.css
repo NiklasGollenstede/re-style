@@ -17,6 +17,21 @@ body {
 	height: 8px;
 }
 
+
+/**
+ * state
+ */
+
+.options-host.disabled {
+	opacity: .6;
+}
+.options-host.disabled input[data-id="disable"],
+.options-host:not(.disabled) input[data-id="enable"],
+#local input[data-id="update"],
+#local input[data-id="remove"]
+{ display: none; }
+
+
 /**
  * sizes and spacing
  */
@@ -43,9 +58,9 @@ body {
 	margin-right: 5px;
 }
 
-.local input[data-id="update"],
-.local input[data-id="remove"]
-{ display: none; }
+#\.controls input {
+	width: 80px;
+}
 
 /**
  * inputs

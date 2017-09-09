@@ -1,39 +1,53 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/options/editor/': Editor,
-	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
+	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/es6lib/dom': { createElement, },
 	'background/local/': Local,
 	'background/remote/': Remote,
+	'background/style': Style,
 	'fetch!./styles.css': css,
-}) => async ({ document, }) => {
-
+}) => async window => {
+const { document, } = window;
 const Types = { Remote, Local, };
 
 document.head.appendChild(createElement('style', [ css, ]));
 
-(await Promise.all(Object.keys(Types).map(async type => {
+for (const [ name, Type, ] of Object.entries(Types)) {
 	let list; document.body.appendChild(createElement('div', {
-		className: 'section '+ type.toLowerCase(),
+		className: 'section', id: name.toLowerCase(),
 	}, [
-		createElement('h1', [ type, ]),
+		createElement('h1', [ name, ]),
 		list = createElement('div'),
 	]));
 
-	const entries = (await Types[type].get());
+	const entries = Array.from(Type, _=>_[1]).sort((a, b) => a.url < b.url ? -1 : 1);
 
-	entries.forEach(({ options, }) => new Editor({
-		options, onCommand,
-		host: list.appendChild(createElement('div', { id: options.id.value, })),
-	}));
+	entries.forEach(style => list.appendChild(createRow(style)));
+}
 
-	async function onCommand({ /*name,*/ parent, }, buttonId) { try {
-		const id = parent.children.id.default;
+Style.onChanged(id => {
+	const style = Style.get(id), element = document.getElementById(id);
+	if (!style) { return void element.remove(); }
+	if (!element) {
+		const list = document.querySelector('#'+ (style instanceof Remote ? 'remote' : 'local'));
+		list.appendChild(createRow(style));
+	} else {
+		element.classList[style.disabled ? 'add' : 'remove']('disabled');
+	}
+}, { owner: window, });
 
-		(await Types[type][buttonId](id));
+function createRow(style) {
+	return new Editor({
+		options: style.options, onCommand: onCommand.bind(null, style),
+		host: createElement('div', { id: style.id, className: style.disabled ? 'disabled' : '', }),
+	});
+}
 
-		reportSuccess(buttonId[0].toUpperCase() + buttonId.slice(1) +'d style', parent.children.name.value);
-	} catch (error) { reportError(error); } }
-
-})));
+async function onCommand(style, _, action) { try { switch (action) {
+	case 'enable':   style.disabled = false; break;
+	case 'disable':  style.disabled = true; break;
+	case 'update':   (await style.update()); break;
+	case 'remove':   (await style.remove()); break;
+} } catch (error) { reportError(error); } }
 
 }); })(this);

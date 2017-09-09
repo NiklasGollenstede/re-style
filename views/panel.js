@@ -3,7 +3,7 @@
 	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
 	'node_modules/es6lib/dom': { createElement, },
-	'background/local/': Local,
+	'background/style': Style,
 	'background/remote/': Remote,
 	'background/remote/map-url': mapUrl,
 }) => async ({ document, }, location) => {
@@ -42,7 +42,7 @@ add.addEventListener('click', event => {
 });
 
 const list = document.querySelector('#styles');
-const styles = [ ]; [ Remote, Local, ].forEach(_=>_.get().forEach(_=>_.matches(tab.url) && styles.push(_)));
+const styles = Array.from(Style, _=>_[1]).filter(_=>_.matches(tab.url)).sort((a, b) => a.url < b.url ? -1 : 1);
 styles.forEach(style => {
 	list.appendChild(createElement('div', [
 		createElement('label', [

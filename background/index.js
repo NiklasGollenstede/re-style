@@ -7,8 +7,8 @@
 	'common/options': options,
 	'views/': _, // put views in tabview
 	'./chrome/': ChromeStyle,
-	'./local/': Local,
-	'./remote/': Remote,
+	'./local/': LocalStyle,
+	'./remote/': RemoteStyle,
 	'./web/': ContentStyle,
 	Parser,
 	Style,
@@ -36,7 +36,7 @@ for (const { id: windowId, } of (await Windows.getAll())) {
 async function setBage(tabId, url) {
 	tabId == null && (tabId = (await Tabs.query({ currentWindow: true, active: true, }))[0].id);
 	url = url || (await Tabs.get(tabId)).url;
-	let matching = 0; [ Remote, Local, ].forEach(_=>_.get().forEach(style => !style.disabled && style.matches(url) && ++matching));
+	let matching = 0; for (const [ , style, ] of Style) { !style.disabled && style.matches(url) && ++matching; }
 	(await browserAction.setBadgeText({ tabId, text: matching +'', }));
 }
 
@@ -49,8 +49,8 @@ Object.assign(global, module.exports = {
 	background: global,
 	ContentStyle,
 	ChromeStyle,
-	Local,
-	Remote,
+	LocalStyle,
+	RemoteStyle,
 });
 
 }); })(this);

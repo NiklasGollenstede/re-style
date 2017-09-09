@@ -6,7 +6,13 @@
 	'../style': Style,
 	require,
 }) => {
-let native = null/*Port*/; const styles = new Map/*<id, Style>*/; let exclude = null/*RegExp*/;
+
+class LocalStyle extends Style {
+	static get(id) { return styles.get(id); }
+	static [Symbol.iterator]() { return styles[Symbol.iterator](); }
+}
+
+let native = null/*Port*/; const styles = new Map/*<id, LocalStyle>*/; let exclude = null/*RegExp*/;
 let active = options.local.value; options.local.onChange(async ([ value, ]) => { try { (await (value ? enable() : disable())); } catch (error) { reportError(error); } });
 let unloading = false; global.addEventListener('unload', () => (unloading = true));
 
@@ -26,7 +32,7 @@ async function enable(init) {
 	(await Promise.all(
 		(await Promise.all(Object.entries(files).map(async ([ path, sheet, ]) => { try {
 			if (exclude.test(path)) { return; }
-			const style = (await new Style(path, ''));
+			const style = (await new LocalStyle(path, ''));
 			styles.set(style.id, style);
 			style.disabled = true;
 			(await style.setSheet(sheet));
@@ -58,7 +64,7 @@ async function onCange(path, css) { try {
 		old.destroy(); styles.delete(id);
 	} } else if (css) {
 		console.info('create', path);
-		const style = (await new Style(path, css));
+		const style = (await new LocalStyle(path, css));
 		styles.set(id, style);
 	}
 } catch (error) { console.error('Error in fs.watch handler',  error); } }
@@ -70,11 +76,6 @@ function disable() {
 	native && native.destroy(); native = null;
 }
 
-return {
-	get _native() { return native; },
-	enable(id) { styles.get(id).disabled = false; },
-	disable(id) { styles.get(id).disabled = true; },
-	get() { return Array.from(styles.values()).sort((a, b) => a.url < b.url ? -1 : 1); },
-};
+return LocalStyle;
 
 }); })(this);

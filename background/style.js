@@ -43,7 +43,7 @@ Storage.onChanged.addListener((changes, area) => {
 		if (!key.startsWith('style.')) { return; }
 		if (newValue === undefined) { delete sync[key]; } else { sync[key] = newValue; }
 		const style = styles.get((/^style\.([0-9a-f]+)\./).exec(key)[1]);
-		style && style.options.onChanged({ [key]: { newValue, }, });
+		style && Self.get(style).options.onChanged({ [key]: { newValue, }, });
 	});
 });
 const storage = {
@@ -90,10 +90,10 @@ class Style {
 	}
 
 	static fromJSON({ url, id, code, hash, name, include, disabled, chrome, web, }) {
-		const _this = Object.create(Style.prototype);
+		const _this = Object.create(this.prototype);
 		const self = Object.create(_Style.prototype);
 		Self.set(self.public = _this, self);
-		self.url = url; self.id = id; self.code = code; self.hash = hash; self.name = name; styles.set(self.id, self);
+		self.url = url; self.id = id; self.code = code; self.hash = hash; self.name = name; styles.set(self.id, _this);
 		self.include = include.map(_=>RegExp(_)); self.disabled = disabled;
 		self.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
 		self.web = web ? WebStyle.fromJSON(web) : null;
@@ -102,12 +102,15 @@ class Style {
 		return _this;
 	}
 
+	static get(id) { return styles.get(id); }
+	static [Symbol.iterator]() { return styles[Symbol.iterator](); }
+
 	static async url2id(string) { return sha1(string); }
 
 	destroy() { Self.get(this).destroy(); }
 }
-const fireChanged = setEvent(Style, 'onChanged', { lazy: false, });
-setEventGetter(Style, 'changed', Self);
+const fireChanged = setEvent(Style, 'onChanged', { lazy: false, async: true, });
+setEventGetter(Style, 'changed', Self, { async: true, });
 
 class _Style {
 	constructor(self, url, code) { return (async () => {
@@ -118,7 +121,7 @@ class _Style {
 		this.disabled = false;
 
 		this.name = url.split(/[\/\\]/g).pop();
-		this.url = url; this.id = (await Style.url2id(url)); styles.set(this.id, this);
+		this.url = url; this.id = (await Style.url2id(url)); styles.set(this.id, self);
 		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
 
 		code && (await this.setSheet(code));
@@ -156,10 +159,12 @@ class _Style {
 	async setSheet(code) {
 		if (!this.id) { return null; }
 		if (!code) {
-			this.styles.splice(0, Infinity).forEach(_=>_.destroy());
-			const changed = !!this.code;
-			this.code = this.hash = '';
-			return changed;
+			if (!this.code) { return false; }
+			this.chrome && this.chrome.destroy(); this.chrome = null;
+			this.web && this.web.destroy(); this.web = null;
+			this.code = this.hash = ''; this.include.splice(0, Infinity);
+			this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
+			return true;
 		}
 		const hash = (await sha1(code));
 		if (hash === this.hash) { return false; }
@@ -169,7 +174,8 @@ class _Style {
 		const include = [ ]; sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => section[type].length && include.push(toRegExp[type](section[type])))
 		);
-		if (this.include.splice(0, Infinity, ...include).length || include.length) { this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ ]); }
+		this.include.splice(0, Infinity, ...include);
+		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 
 		!this.disabled && this.enable();
 		return true;
@@ -242,14 +248,14 @@ class _Style {
 			this.options.children.name.value = ''; this.options.children.name.reset();
 		}
 
-		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ ]);
+		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 	}
 
 	disable() {
 		if (this.disabled === true) { return; } this.disabled = true;
 		this.chrome && this.chrome.destroy(); this.chrome = null;
 		this.web && this.web.destroy(); this.web = null;
-		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ ]);
+		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 	}
 
 	destroy(final) {
@@ -257,7 +263,7 @@ class _Style {
 		this.disable();
 		final && this.options && this.options.resetAll();
 		this.options && this.options.destroy(); this.options = null;
-		this.fireChanged && this.fireChanged(null, { last: true, });
+		this.fireChanged && this.fireChanged(null, { last: true, }); fireChanged([ this.id, ]);
 		styles.delete(this.id); this.url = this.id = this.hash = '';
 	}
 }
