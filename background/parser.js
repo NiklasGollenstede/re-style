@@ -166,11 +166,11 @@ const rNonEscape = RegExpX('n')`(
 	| ( \\\\ )*     # an even number of backslashes
 )*?`;
 const rUrlRule = RegExpX('n')`
-	(?<type> url(-prefix)?|domain|regexp ) \s* \( (
+	(?<type> url(-prefix)?|domain|regexp ) \s* \( \s* (
 		  ' (?<string> ${ rNonEscape }) '
 		| " (?<string> ${ rNonEscape }) "
 		| (?<raw> .*? )
-	) \)
+	) \s* \)
 `;
 const rTokens = RegExpX('gns')`
 	  @namespace\b

@@ -6,21 +6,24 @@
 	'background/style': Style,
 	'background/remote/': Remote,
 	'background/remote/map-url': mapUrl,
-}) => async ({ document, }, location) => {
+}) => async (window, location) => {
+const { document, } = window;
 
 document.body.innerHTML = `
 	<style>
-		:root { background: #424F5A; filter: invert(1) hue-rotate(180deg); font-family: Segoe UI, Tahoma, sans-serif; }
+		:root { background: #424F5A; filter: invert(1) hue-rotate(180deg); font-family: Segoe UI, Tahoma, sans-serif; overflow: hidden; }
+		:root { box-sizing: border-box; } * { box-sizing: inherit; }
+		:root { width: 350px; margin-bottom: -1px; } body { width: 333px; margin 8px; }
 		#options { position: absolute; top: 11px; right: 9px; }
-		h3 { margin: 0; cursor: default; } #styles { margin-bottom: 10px; }
+		h3 { margin: 0; cursor: default; } #styles { margin-bottom: 10px; max-height: 250px; overflow-y: auto; }
 		#styles:empty::after { content: '<none>'; opacity: .5; }
-		textarea { resize: vertical; max-height: 8.2em; min-height: 3.5em; overflow-y: scroll; word-break: break-all; }
+		textarea { width: 100%; resize: vertical; max-height: 8.2em; min-height: 3.5em; overflow-y: scroll; word-break: break-all; }
 	</style>
 	<button id="options">Options</button>
 	<h3>Active styles</h3>
 	<div id="styles"></div>
 	<h3>Install style</h3>
-	<textarea id="url" type="text" placeholder="URL to .css file" style="width:300px;resize:vertical;"></textarea><br>
+	<textarea id="url" type="text" placeholder="URL to .css file"></textarea><br>
 	<button id="add">Add style</button>
 `;
 

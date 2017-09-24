@@ -29,11 +29,12 @@ const contentUrlPrefixes = [
 	'https://addons.mozilla.org/',
 ];
 
+const RegExpXu = RegExpX('u');
 const toRegExp = {
-	urls(raws) { return RegExpX`^${ raws }$`; },
-	urlPrefixes(raws) { return RegExpX`^${ raws }.*$`; },
-	domains(raws) { return RegExpX`^https?://(?:[^/]*.)?${ raws }(?:$|/.*$)`; },
-	regexps(raws) { return RegExpX`^${ raws.map(_=>RegExp(_)) }$`; },
+	urls(raws) { return RegExpXu`^${ raws }$`; },
+	urlPrefixes(raws) { return RegExpXu`^${ raws }.*$`; },
+	domains(raws) { return RegExpXu`^https?://(?:[^/]*.)?${ raws }(?:$|/.*$)`; },
+	regexps(raws) { return RegExpXu`^${ raws.map(_=>RegExp(_)) }$`; },
 };
 
 const sync = (await Storage.sync.get(null)); Object.keys(sync).forEach(key => !key.startsWith('style.') && delete sync[key]);
@@ -172,7 +173,9 @@ class _Style {
 
 		const { sections, } = this._sheet = typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code);
 		const include = [ ]; sections.forEach(section =>
-			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => section[type].length && include.push(toRegExp[type](section[type])))
+			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
+				section[type].length && include.push(toRegExp[type](section[type]));
+			} catch(error) { console.error(`Failed to parse ${type} pattern(s) in ${this.url}`, error); } })
 		);
 		this.include.splice(0, Infinity, ...include);
 		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
