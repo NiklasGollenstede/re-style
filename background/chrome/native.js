@@ -1,11 +1,9 @@
-async port => { 'use strict'; /* global require, process, Buffer, */ /* eslint-disable no-console */ // eslint-disable-line no-unused-expressions
-
-console.log('init chrome');
+/* eslint-env node */ /* eslint-disable strict, no-console */ 'use strict'; /* global require, module, process, Buffer, */
 
 const FS = require('fs'); const Path = require('path');
 function get(api, ...args) { return new Promise((resolve, reject) => api(...args, (error, value) => error ? reject(error) : resolve(value))); }
 
-port.addHandler(async function writeUserChromeCss(profileDir, files) {
+module.exports = async function writeUserChromeCss(profileDir, files) {
 	if (!profileDir && process.env.MOZ_CRASHREPORTER_EVENTS_DIRECTORY) {
 		profileDir = Path.resolve(process.env.MOZ_CRASHREPORTER_EVENTS_DIRECTORY, '../..');
 	}
@@ -36,8 +34,4 @@ port.addHandler(async function writeUserChromeCss(profileDir, files) {
 
 	console.log(changed ? 'wrote userC*.css' : 'userC*.css not changed');
 	return changed;
-});
-
-port.ended.then(() => console.log('chrome closed'));
-
-} // eslint-disable-line
+};

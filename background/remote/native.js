@@ -1,10 +1,9 @@
-async port => { 'use strict'; /* global require, */ /* eslint-disable no-console */ // eslint-disable-line no-unused-expressions
-
-console.log('init remote');
+/* eslint-env node */ /* eslint-disable strict, no-console */ 'use strict'; /* global require, module, */
 
 const { URL, } = require('url');
 
-port.addHandler(async function fetchText(url) { return new Promise((resolve, reject) => {
+// (url: string) => ({ data: string, type: string, })
+module.exports = url => new Promise((resolve, reject) => {
 	url = new URL(url);
 	let http; switch (url.protocol) {
 		case 'http:': case 'https:': http = require(url.protocol.slice(0, -1)); break;
@@ -23,8 +22,4 @@ port.addHandler(async function fetchText(url) { return new Promise((resolve, rej
 		let data = ''; response.on('data', chunk => (data += chunk));
 		response.on('end', () => resolve({ data, type, }));
 	} catch (error) { reject(error); } }).on('error', reject);
-}); });
-
-port.ended.then(() => console.log('remote closed'));
-
-} // eslint-disable-line
+});

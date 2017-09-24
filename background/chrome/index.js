@@ -1,16 +1,15 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, },
-	'node_modules/web-ext-utils/loader/native': connect,
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
+	'node_modules/native-ext/': Native,
 	'node_modules/es6lib/functional': { debounce, },
-	'fetch!./native.js': script,
 	'common/options': options,
 	'../util': { debounceIdle, },
 	require,
 }) => {
 let active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; writeStyles(!value); });
 
-const styles = new Set; let native = null;
+const styles = new Set; let writeCss = null;
 const minify = false;
 
 class ChromeStyle {
@@ -41,7 +40,7 @@ class ChromeStyle {
 
 const writeStyles = debounceIdle(async (clear) => { try {
 	if (!active && !clear) { return; }
-	native = native || (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
+	writeCss = writeCss || (await Native.require(require.resolve('./native')));
 	const sorted = clear ? null : Array.from(styles).sort((a, b) => a.path < b.path ? -1 : 1);
 
 	// TODO: this throws all @namespace declarations into a single file. Is that even supposed to work? Do later (default) declarations overwrite earlier ones?
@@ -59,7 +58,7 @@ const writeStyles = debounceIdle(async (clear) => { try {
 		) +'\n'
 	));
 
-	const changed = (await native.request('writeUserChromeCss', options.chrome.children.profile.value, clear ? null : files));
+	const changed = (await writeCss(options.chrome.children.profile.value, clear ? null : files));
 
 	changed && reportSuccess(`The UI styles were changed`, `restart the browser to apply the changes`);
 } catch (error) {
@@ -67,8 +66,7 @@ const writeStyles = debounceIdle(async (clear) => { try {
 } finally { destroy(); } }, 1e3);
 
 const destroy = debounce(() => {
-	native && native.destroy();
-	native = null;
+	Native.unref(writeCss); writeCss = null;
 }, 60e3);
 
 return ChromeStyle;

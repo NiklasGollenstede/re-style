@@ -1,7 +1,6 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/loader/native': connect,
 	'node_modules/web-ext-utils/utils/': { reportError, },
-	'fetch!./native.js': script,
+	'node_modules/native-ext/': Native,
 	'common/options': options,
 	'../style': Style,
 	require,
@@ -22,11 +21,15 @@ async function enable(init) {
 	if (active && !init) { return; } active = options.local.value = true;
 	// console.log('enable local styles');
 	exclude = new RegExp(options.local.children.exclude.value || '^.^');
-	native = (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
-	// native.addHandler('log', console.log.bind(console, 'native log'));
+	native = (await Native.require(
+		require.resolve('./native'),
+		{ onDisconnect: () => global.setTimeout(() => {
+			!unloading && active && reportError('Connection to native extension lost');
+			// TODO: show permanent notification with option to restart
+		}, 20), },
+	));
 
-	const files = (await native.request('readStyles', options.local.children.folder.value, onCange));
-	native.afterEnded('release', onCange);
+	const files = (await native.readStyles(options.local.children.folder.value, onCange));
 
 	// console.log('got local styles', files);
 	(await Promise.all(
@@ -46,11 +49,6 @@ async function enable(init) {
 	}
 
 	styles.forEach(style => { try { style.disabled = false; } catch (error) { reportError(`Failed to add local style`, error); } });
-
-	native.ended.then(() => global.setTimeout(() => {
-		!unloading && active && reportError('Connection to native extension lost');
-		// TODO: show permanent notification with option to restart
-	}, 20));
 }
 
 async function onCange(path, css) { try {
@@ -73,7 +71,8 @@ function disable() {
 	if (!active) { return; } active = options.local.value = false;
 	// console.log('disable local styles');
 	Array.from(styles.values(), _=>_.destroy()); styles.clear();
-	native && native.destroy(); native = null;
+	native.release(onCange);
+	Native.unref(native); native = null;
 }
 
 return LocalStyle;

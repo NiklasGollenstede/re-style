@@ -1,7 +1,7 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { Storage: { local: Storage, }, },
-	'node_modules/web-ext-utils/loader/native': connect,
 	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/native-ext/': Native,
 	'fetch!./native.js': script,
 	'common/options': options,
 	'../style': Style,
@@ -96,9 +96,9 @@ async function fetchText(url) {
 		const type = reply.headers.get('content-type');
 		return { data: (await reply.text()), type, };
 	} else {
-		const native = (await connect({ script, sourceURL: require.toUrl('./native.js'), }));
-		const reply = (await native.request('fetchText', url));
-		native.destroy();
+		const fetchText = (await Native.require(require.resolve('./native')));
+		const reply = (await fetchText(url));
+		Native.unref(fetchText);
 		return reply;
 	}
 }

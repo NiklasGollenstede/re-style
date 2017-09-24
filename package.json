@@ -1,6 +1,6 @@
 {
 	"name": "re-style",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"title": "reStyle",
 	"description": "A user style manager for Firefox 57+ which can load local files and apply UI styles",
 	"author": "Niklas Gollenstede",
@@ -13,6 +13,7 @@
 	"dependencies": {
 		"browserify": "14.4.0",
 		"es6lib": "0.0.2",
+		"native-ext": "0.2.0",
 		"regexpx": "0.1.3",
 		"web-ext-build": "0.0.5",
 		"web-ext-utils": "0.0.13"

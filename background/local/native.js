@@ -1,6 +1,4 @@
-async port => { 'use strict'; /* global require, */ /* eslint-disable no-console */ // eslint-disable-line no-unused-expressions
-
-console.log('init local');
+/* eslint-env node */ /* eslint-disable strict, no-console */ 'use strict'; /* global require, module, */
 
 const FS = require('fs'); const Path = require('path').posix;
 function get(api, ...args) { return new Promise((resolve, reject) => api(...args, (error, value) => error ? reject(error) : resolve(value))); }
@@ -42,16 +40,11 @@ async function readStyles(dir, onChange) {
 	return data;
 }
 
-
-port.addHandlers({
+module.exports = {
 	readStyles,
 	release(onChange) {
 		console.log('release');
 		const watcher = cb2watcher.get(onChange); cb2watcher.delete(onChange);
 		watcher && watcher.close();
 	},
-});
-
-port.ended.then(() => console.log('port closed'));
-
-} // eslint-disable-line
+};
