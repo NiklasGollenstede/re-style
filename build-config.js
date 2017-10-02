@@ -15,7 +15,6 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'es6lib/dom.js',
 		'es6lib/functional.js',
 		'native-ext/index.js',
-		'native-ext/multiplex.js',
 		'regexpx/index.js',
 		'web-ext-utils/browser/index.js',
 		'web-ext-utils/browser/version.js',

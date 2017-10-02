@@ -1,8 +1,7 @@
-(function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+(function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { Storage: { local: Storage, }, },
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/native-ext/': Native,
-	'fetch!./native.js': script,
 	'common/options': options,
 	'../style': Style,
 	require,
@@ -22,7 +21,7 @@ class RemoteStyle extends Style {
 
 const urlList = options.remote.children.urls.values; const styles = new Map/*<id, RemoteStyle>*/;
 
-{ // load existing
+(async () => { // load existing
 	const actions = [ ];
 	(await Promise.all(urlList.current.map(async url => { try {
 		const id = (await Style.url2id(url));
@@ -46,7 +45,7 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore remote style`, error); } });
 
 	styles.forEach(_=>_.onChanged(onChanged));
-}
+})();
 
 function onChanged(style) {
 	Storage.set({ ['remote.cache.'+ style.id]: style.toJSON(), });

@@ -64,6 +64,10 @@ class Style {
 
 	get url() { return Self.get(this).url; }
 	get id() { return Self.get(this).id; }
+	get code() { return Self.get(this).code; }
+	get sheet() { return Self.get(this).sheet; }
+	get chrome() { return Self.get(this).chrome; }
+	get web() { return Self.get(this).web; }
 
 	get disabled() { return Self.get(this).disabled; }
 	set disabled(value) {
@@ -86,7 +90,7 @@ class Style {
 			include: self.include.map(_=>_.source), disabled: self.disabled,
 			chrome: self.chrome, web: self.web,
 		};
-		Object.defineProperty(json, '_sheet', { value: self._sheet, });
+		Object.defineProperty(json, 'sheet', { value: self.sheet, });
 		return json;
 	}
 
@@ -118,10 +122,10 @@ class _Style {
 		Self.set(this.public = self, this);
 		this.url = this.id = this.code = this.hash = this.name = '';
 		this.options = null; this.include = [ ];
-		this.chrome = this.web = null;
+		this.sheet = this.chrome = this.web = null;
 		this.disabled = false;
 
-		this.name = url.split(/[\/\\]/g).pop();
+		this.name = url.split(/[\/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
 		this.url = url; this.id = (await Style.url2id(url)); styles.set(this.id, self);
 		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
 
@@ -158,7 +162,6 @@ class _Style {
 	}
 
 	async setSheet(code) {
-		if (!this.id) { return null; }
 		if (!code) {
 			if (!this.code) { return false; }
 			this.chrome && this.chrome.destroy(); this.chrome = null;
@@ -171,7 +174,7 @@ class _Style {
 		if (hash === this.hash) { return false; }
 		this.code = code; this.hash = hash;
 
-		const { sections, } = this._sheet = typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code);
+		const { sections, } = this.sheet = typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code);
 		const include = [ ]; sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
 				section[type].length && include.push(toRegExp[type](section[type]));
@@ -188,7 +191,7 @@ class _Style {
 	enable() {
 		this.disabled = false;
 
-		const sheet = this._sheet = this._sheet || (typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code));
+		const sheet = this.sheet = this.sheet || (typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code));
 		const { sections, namespace, meta, } = sheet;
 
 		const isXul = rXulNs.test(namespace.replace(/\\(?!\\)/g, ''));
@@ -202,33 +205,33 @@ class _Style {
 				else { webContent.push(section); } return;
 			}
 
-			const chrome = section.cloneWithoutIncludes(), content = section.cloneWithoutIncludes(), web = section.cloneWithoutIncludes();
+			const chrome_ = section.cloneWithoutIncludes(), content = section.cloneWithoutIncludes(), web = section.cloneWithoutIncludes();
 
 			domains.forEach(domain => domain === 'addons.mozilla.org' ? content.domains.push(domain) : web.domains.push(domain));
 
 			urls.forEach(url => {
 				let isWeb = true;
-				if (chromeUrlPrefixes .some(prefix => url.startsWith(prefix))) { chrome .urls.push(url); isWeb = false; }
+				if (chromeUrlPrefixes .some(prefix => url.startsWith(prefix))) { chrome_.urls.push(url); isWeb = false; }
 				if (contentUrlPrefixes.some(prefix => url.startsWith(prefix))) { content.urls.push(url); isWeb = false; }
 				isWeb && web.urls.push(url);
 			});
 
 			urlPrefixes.forEach(url => {
 				let isWeb = true;
-				if (chromeUrlPrefixes .some(prefix => url.startsWith(prefix) || prefix.startsWith(url))) { chrome .urlPrefixes.push(url); isWeb = false; }
+				if (chromeUrlPrefixes .some(prefix => url.startsWith(prefix) || prefix.startsWith(url))) { chrome_.urlPrefixes.push(url); isWeb = false; }
 				if (contentUrlPrefixes.some(prefix => url.startsWith(prefix) || prefix.startsWith(url))) { content.urlPrefixes.push(url); isWeb = false; }
 				isWeb && web.urlPrefixes.push(url);
 			});
 
 			// this is not going to be accurate (and therefore not exclusive)
 			regexps.forEach(source => {
-				(/chrome\\?:\\\/\\\//).test(source) && chrome.regexps.push(source);
+				(/chrome\\?:\\\/\\\//).test(source) && chrome_.regexps.push(source);
 				(/(?:resource|moz-extension)\\?:\\\/\\\/|(?:about|blob|data|view-source)\\?:|addons.*mozilla(?:\[\.\]|\\?\\.)org/)
 				.test(source) && content.regexps.push(source);
 				web.regexps.push(source); // could pretty much always (also) match a web page
 			});
 
-			chrome.urls.length  + chrome.urlPrefixes.length  + chrome.domains.length  + chrome.regexps.length  > 0 && userChrome.push(chrome);
+			chrome_.urls.length + chrome_.urlPrefixes.length + chrome_.domains.length + chrome_.regexps.length > 0 && userChrome.push(chrome_);
 			content.urls.length + content.urlPrefixes.length + content.domains.length + content.regexps.length > 0 && userContent.push(content);
 			web.urls.length     + web.urlPrefixes.length     + web.domains.length     + web.regexps.length     > 0 && webContent.push(web);
 		});

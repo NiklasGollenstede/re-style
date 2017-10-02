@@ -35,7 +35,7 @@ const model = {
 		title: 'UI Styles',
 		description: `Starting with Firefox 57, it is no longer possible for Add-ons to directly apply user styles to anything else than normal websites.<br>
 		As a workaround, ${ manifest.name } recognizes styles that will no longer work and writes them to the
-		<code>userCrome.css</code> (e.g. for the UI) and <code>userContent.css</code> (e.g. for about:-pages).<br>
+		<code>userCrome.css</code> (e.g. for the UI) and <code>userContent.css</code> (e.g. for about:-pages) files of the current Firefox profile.<br>
 		NOTE: This overwrites all previous content and all changes to those files.<br>
 		NOTE: The browser must be restarted for changes to those files to apply.`,
 		default: firefox, hidden: !firefox,
@@ -43,12 +43,12 @@ const model = {
 		input: { type: 'boolean', suffix: `enable`, },
 		children: {
 			profile: {
-				expanded: false,
+				expanded: false, hidden: firefox,
 				title: 'Profile location',
-				description: `To change the files in your Firefox profile, ${ manifest.name } needs to know where that profile is.
+				description: `To change the files in your browser profile, ${ manifest.name } needs to know where that profile is.
 				There is a chance that this can be automatically detected. If not, you will see a corresponding error message.
 				If that is the case, please paste the path to the root of the profile directory below.<br>
-				To get that path, open <code><a href="about:support" title="Please drag this to the tab bar">about:support</a></code>,
+				To get that path, open <code>about:support</code>,
 				click the "Open Folder" button in the "Profile Folder" row of its first table and copy that path.`,
 				default: [ '', ],
 				restrict: { type: 'string', },
@@ -79,6 +79,15 @@ const model = {
 				default: [ 'thunderbird', ],
 				restrict: { type: 'string', },
 				input: { type: 'string', },
+			},
+			chrome: {
+				title: 'Chrome debugging',
+				description: `To develop chrome styles without restarting the browser after every change, you can open the <i>Browser Toolbox</i> (<code>Ctrl</code> + <code>Shift</code> + <code>Alt</code> + <code>I</code>)
+				and ...
+				`,
+				default: true,
+				restrict: { type: 'boolean', },
+				input: { type: 'boolean', suffix: `enable`, },
 			},
 		},
 	},

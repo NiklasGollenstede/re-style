@@ -4,6 +4,9 @@
 
 function parseStyle(css, { onerror = error => console.warn('CSS parsing error', error), } = { }) {
 	const tokens = tokenize(css);
+	let lastPos = 0, lastIndex = 0; const pos = index => {
+		while (lastIndex < index) { lastPos += tokens[lastIndex++].length; } return lastPos;
+	};
 
 	let namespace = '', meta = { };
 	const sections = [ ], globalTokens = [ ];
@@ -38,7 +41,7 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 				}
 			});
 			const end = skipBlock(tokens, start);
-			sections.push(new Section(urls, urlPrefixes, domains, regexps, '', tokens.slice(start +1, end)));
+			sections.push(new Section(urls, urlPrefixes, domains, regexps, '', tokens.slice(start +1, end), [ pos(start +1), pos(end), ]));
 			index = end +1;
 		} break;
 		case '{': case '(': {
@@ -117,9 +120,9 @@ class Sheet {
 }
 
 class Section {
-	constructor(urls, urlPrefixes, domains, regexps, code, tokens = null) {
+	constructor(urls, urlPrefixes, domains, regexps, code, tokens = null, location = null) {
 		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
-		this.code = code; this.tokens = tokens;
+		this.code = code; this.tokens = tokens; this.location = location;
 	}
 
 	cloneWithoutIncludes() { return new Section([ ], [ ], [ ], [ ], this.code, this.tokens); }
@@ -232,14 +235,14 @@ function addImportants(tokens) {
 			hadColon = !!word;
 			// hadColon = word && !word.startsWith('--'); // !important is not allowed after variable definitions
 		} break;
-		case '{': case '}': hadColon = false; break;
+		case '{': hadColon = false; break;
 		case '(': {
 			const end = skipBlock(tokens, index);
 			out.push(...tokens.slice(index, index = end));
 		} break;
-		case ';': {
+		case '}': case ';': {
 			hadColon && tokens[((/\s+/).test(tokens[index - 1]) ? index - 2 : index - 1)] !== '!important'
-			&& out.push(' ', '!important'); hadColon = false;
+			&& out.push('/*rS*/!important'); hadColon = false;
 		} break;
 	} out.push(tokens[index]); }
 	return out;

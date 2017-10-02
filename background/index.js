@@ -4,6 +4,9 @@
 	'node_modules/web-ext-utils/loader/': Content, // TODO: remove line
 	'node_modules/web-ext-utils/loader/views': { getUrl, openView, },
 	'node_modules/web-ext-utils/update/': updated,
+	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/es6lib/functional': { debounce, },
+	'node_modules/native-ext/': Native,
 	'common/options': options,
 	'views/': _, // put views in tabview
 	'./chrome/': ChromeStyle,
@@ -29,7 +32,7 @@ fennec && browserAction.onClicked.addListener(() => openView('panel'));
 browserAction.setBadgeBackgroundColor({ color: [ 0x00, 0x7f, 0x00, 0x60, ], });
 Tabs.onActivated.addListener(({ tabId, }) => setBage(tabId));
 Tabs.onUpdated.addListener((tabId, change, { active, }) => active && ('url' in change) && setBage(tabId, change.url));
-Style.onChanged(() => setBage());
+Style.onChanged(debounce(() => setBage(), 50));
 for (const { id: windowId, } of (await Windows.getAll())) {
 	Tabs.query({ windowId, active: true, }).then(([ { id, url, }, ]) => setBage(id, url));
 }
@@ -39,6 +42,10 @@ async function setBage(tabId, url) {
 	let matching = 0; for (const [ , style, ] of Style) { !style.disabled && style.matches(url) && ++matching; }
 	(await browserAction.setBadgeText({ tabId, text: matching +'', }));
 }
+
+
+Native.onUncaughtException(error => { reportError('Unhandled error in native code', error); /*Native.nuke();*/ });
+Native.onUnhandledRejection(error => { reportError('Unhandled rejection in native code', error); /*Native.nuke();*/ });
 
 
 // debug stuff
