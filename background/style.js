@@ -33,7 +33,7 @@ const RegExpXu = RegExpX('u');
 const toRegExp = {
 	urls(raws) { return RegExpXu`^${ raws }$`; },
 	urlPrefixes(raws) { return RegExpXu`^${ raws }.*$`; },
-	domains(raws) { return RegExpXu`^https?://(?:[^/]*.)?${ raws }(?:$|/.*$)`; },
+	domains(raws) { return RegExpXu`^https?://(?:[^/]+\.)?${ raws }(?:$|/.*$)`; },
 	regexps(raws) { return RegExpXu`^${ raws.map(_=>RegExp(_)) }$`; },
 };
 

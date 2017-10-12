@@ -41,20 +41,6 @@ const model = {
 		default: firefox, hidden: !firefox,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
-		children: {
-			profile: {
-				expanded: false, hidden: firefox,
-				title: 'Profile location',
-				description: `To change the files in your browser profile, ${ manifest.name } needs to know where that profile is.
-				There is a chance that this can be automatically detected. If not, you will see a corresponding error message.
-				If that is the case, please paste the path to the root of the profile directory below.<br>
-				To get that path, open <code>about:support</code>,
-				click the "Open Folder" button in the "Profile Folder" row of its first table and copy that path.`,
-				default: [ '', ],
-				restrict: { type: 'string', },
-				input: { type: 'string', },
-			},
-		},
 	},
 	local: {
 		title: 'Development Mode',

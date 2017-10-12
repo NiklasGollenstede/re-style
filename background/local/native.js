@@ -1,12 +1,12 @@
 /* eslint-env node */ /* eslint-disable strict, no-console */ 'use strict'; /* global require, module, */
 
-const FS = require('fs'); const Path = require('path'), OS = require('os');
+const FS = require('fs'); const Path = require('path'), { EOL, } = require('os');
 function get(api, ...args) { return new Promise((resolve, reject) => api(...args, (error, value) => error ? reject(error) : resolve(value))); }
 
 const cb2watcher = new WeakMap;
 
 async function readAndWatch(include, dir, onChange) {
-	dir = dir.replace(/\\/g, '/').replace(/^~/, () => require('os').homedir());
+	dir = dir.replace(/\\/g, '/').replace(/^~(?=[\\\/])/, () => require('os').homedir());
 	const data = { }, mtime = { };
 	(await (async function read(dir) {
 		for (const name of (await get(FS.readdir, dir))) {
@@ -50,14 +50,13 @@ function release(onChange) {
 module.exports = {
 	readStyles: readAndWatch.bind(null, (/\.css$/)),
 	async watchChrome(onChange) {
-		const chromeDir = Path.resolve(process.env.MOZ_CRASHREPORTER_EVENTS_DIRECTORY, '../../chrome/');
+		const chromeDir = Path.join(require('browser').profileDir, 'chrome');
 		try { (await get(FS.mkdir, chromeDir)); } catch (_) { }
 		(await readAndWatch((/[\/\\]user(?:Chrome|Content)[.]css$/), chromeDir, onChange));
 	},
 	release,
 	async writeStyle(path, css) {
 		if (!(/\.css$/).test(path)) { throw new Error(`Can only write .css files`); }
-		if (OS.EOL !== '\n') { css = css.replace(new RegExp(`${OS.EOL}|\n`, 'g'), OS.EOL); }
-		(await get(FS.writeFile, path, css, 'utf-8'));
+		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), 'utf-8'));
 	},
 };

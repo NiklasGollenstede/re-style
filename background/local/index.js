@@ -2,7 +2,7 @@
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/native-ext/': Native,
 	'common/options': options,
-	'../chrome/': { separator, },
+	'../chrome/': ChromeStyle,
 	'../parser': Sheet,
 	'../style': Style,
 	'../util': { debounceIdle, },
@@ -41,7 +41,7 @@ async function enable(init) {
 			const style = (await new LocalStyle(path, ''));
 			styles.set(style.id, style);
 			style.disabled = true;
-			(await style.setSheet(sheet));
+			(await style.setSheet(sheet.replace(/\r\n?/g, '\n')));
 		} catch (error) { reportError(`Failed to add local style`, path, error); } })))
 	));
 
@@ -77,18 +77,18 @@ async function onCange(path, css) { try {
 
 async function onChromeChange(path, css) { try {
 	console.log('onChromeChange start');
+	if (!css) { return; } // file deleted
 	const isChrome = (/[\/\\]userChrome[.]css$/).test(path);
 
-	(await Promise.all(css.replace(/\r\n?/g, '\n').replace(/^.*\n/, '').split(separator.trim()).map(async css => {
-		let path; css = css.trim().replace(/^\/\* (.*) \*\/\n/, (_, s) => ((path = s), ''));
-		if (!path) { console.error('failed to parse', css); return; }
+	(await Promise.all(Object.entries(ChromeStyle.extractFiles(css.replace(/\r\n?/g, '\n'))).map(async ([ path, css, ]) => {
 		const id = (await Style.url2id(path));
-		const style = styles.get(id);
-		if (!style) { return; }
+		const style = styles.get(id); if (!style) { return; }
 		if (style.chrome[isChrome ? 'chrome' : 'content'] === css) { return; }
+
 		const parts = [ style.code, ]; let lastPos = 0;
 		const now = Sheet.fromCode(css.replace(/\/\*rS\*\/!important/g, ''), { onerror: error => { throw error; }, });
 		const old = style.sheet, oldSections = old.sections.slice();
+
 		for (const section of now.sections) {
 			const oldSection = oldSections.find(old =>
 				   section.urls.every(_=>old.urls.includes(_))

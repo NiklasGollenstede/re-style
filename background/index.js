@@ -40,7 +40,7 @@ async function setBage(tabId, url) {
 	tabId == null && (tabId = (await Tabs.query({ currentWindow: true, active: true, }))[0].id);
 	url = url || (await Tabs.get(tabId)).url;
 	let matching = 0; for (const [ , style, ] of Style) { !style.disabled && style.matches(url) && ++matching; }
-	(await browserAction.setBadgeText({ tabId, text: matching +'', }));
+	(await browserAction.setBadgeText({ tabId, text: matching ? matching +'' : '', }));
 }
 
 

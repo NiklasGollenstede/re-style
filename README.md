@@ -45,3 +45,13 @@ Then see the `/build/` directory.
 Create `.png` icon from `.svg`:
 `svgexport icon.svg icon.png :128`
 Then compress with `pngquant`.
+
+
+## Project layout
+
+There are tow places styles can come from and two places they can go. Styles can be installed as
+
+* `/remote/`: `RemoteStyle`s from any URL that points at a `.css` file (or `.json` in the format used by `userstyles.org`)
+* `/local/`: `LocalStyle`s from a user chosen directory on the local computer.
+
+both extend `Style` ... TBC

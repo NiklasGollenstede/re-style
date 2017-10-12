@@ -70,11 +70,11 @@ async function update(style, query) {
 	const { data, type, } = (await fetchText(style.url + (query ? query.replace(/^\??/, '?') : '')));
 
 	if (!(/^text\/css$/).test(type)) {
-		const json = JSON.parse(data);
+		const json = JSON.parse(data.replace(/\\r(?:\\n)?/g, '\\n'));
 		// TODO: should do some basic data validation
 		(await style.setSheet(json));
 	} else if (!(/^application\/json$/).test(type)) {
-		(await style.setSheet(data));
+		(await style.setSheet(data.replace(/\r\n?/g, '\n')));
 	} else {
 		throw new TypeError(`Unexpected MIME-Type ${ type } for style ${ style.name }`);
 	}

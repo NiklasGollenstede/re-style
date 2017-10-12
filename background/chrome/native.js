@@ -1,37 +1,33 @@
 /* eslint-env node */ /* eslint-disable strict, no-console */ 'use strict'; /* global require, module, process, Buffer, */
 
-const FS = require('fs'); const Path = require('path');
-function get(api, ...args) { return new Promise((resolve, reject) => api(...args, (error, value) => error ? reject(error) : resolve(value))); }
+const FS = require('fs'), { promisify, } = require('util'), { EOL, } = require('os');
+const access = promisify(FS.access), mkdir = promisify(FS.mkdir), readFile = promisify(FS.readFile), writeFile = promisify(FS.writeFile);
+const { profileDir, } = require('browser');
 
-module.exports = async function writeUserChromeCss(profileDir, files) {
-	if (!profileDir && process.env.MOZ_CRASHREPORTER_EVENTS_DIRECTORY) {
-		profileDir = Path.resolve(process.env.MOZ_CRASHREPORTER_EVENTS_DIRECTORY, '../..');
-	}
-	if (!profileDir) {
-		throw new Error(`The profile location is not specified and can't be detected. Please set it manually.`);
-	}
+async function write(files, exp = '.*') {
+	try { (await access(profileDir)); } catch (_) { throw new Error(`Cant access profile directory in "${ profileDir }"`); }
+	try { (await mkdir(profileDir +'/chrome')); } catch (_) { }
+	exp = exp.replace(/\\n|\n/g, JSON.stringify(EOL).slice(1, -1));
 
-	try { (await get(FS.access, profileDir)); } catch (_) { if (!files) { return false; } else { throw new Error(`Cant access profile directory in "${ profileDir }"`); } }
+	(await Promise.all([ 'chrome', 'content', ].map(async type => {
+		const old = (await readSafe(type));
+		const css = old.replace(new RegExp(exp +'|$'), () => files[type].replace(/\n/g, EOL));
 
-	const changed = (await Promise.all([ 'Chrome', 'Content', ].map(async suffix => {
-		if (!files) {
-			try { (await get(FS.unlink, profileDir +`/chrome/user${suffix}.css`)); }
-			catch (_) { return false; } return true;
-		}
+		(await writeFile(profileDir +`/chrome/userC${type.slice(1)}.css`, css, 'utf-8'));
+	})));
+}
 
-		const css = files[suffix.toLowerCase()];
-		const buffer = Buffer.allocUnsafe(Buffer.byteLength(css));
-		buffer.write(css, 0, 'utf-8');
+async function read() {
+	const files = { chrome: '', content: '', };
+	(await Promise.all(Object.keys(files).map(async type => {
+		files[type] = (await readSafe(type));
+	})));
+	return files;
+}
 
-		try { (await get(FS.mkdir, profileDir +'/chrome')); } catch (_) { }
+async function readSafe(type) {
+	try { return (await readFile(profileDir +`/chrome/userC${type.slice(1)}.css`, 'utf-8')); }
+	catch (error) { error && error.code !== 'ENOENT' && console.error(error); return ''; }
+}
 
-		let changed = true; try { changed = 0 !== Buffer.compare(buffer, (await get(FS.readFile, profileDir +`/chrome/user${suffix}.css`, buffer))); } catch (_) { }
-
-		changed && (await get(FS.writeFile, profileDir +`/chrome/user${suffix}.css`, buffer));
-
-		return changed;
-	}))).some(_=>_);
-
-	console.log(changed ? 'wrote userC*.css' : 'userC*.css not changed');
-	return changed;
-};
+module.exports = { read, write, };
