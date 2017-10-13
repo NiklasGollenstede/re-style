@@ -74,7 +74,8 @@ async function update(style, query) {
 		// TODO: should do some basic data validation
 		(await style.setSheet(json));
 	} else if (!(/^application\/json$/).test(type)) {
-		(await style.setSheet(data.replace(/\r\n?/g, '\n')));
+		const css = data.replace(/\r\n?/g, '\n');
+		(await style.setSheet(css));
 	} else {
 		throw new TypeError(`Unexpected MIME-Type ${ type } for style ${ style.name }`);
 	}

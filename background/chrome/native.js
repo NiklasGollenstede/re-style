@@ -7,7 +7,6 @@ const { profileDir, } = require('browser');
 async function write(files, exp = '.*') {
 	try { (await access(profileDir)); } catch (_) { throw new Error(`Cant access profile directory in "${ profileDir }"`); }
 	try { (await mkdir(profileDir +'/chrome')); } catch (_) { }
-	exp = exp.replace(/\\n|\n/g, JSON.stringify(EOL).slice(1, -1));
 
 	(await Promise.all([ 'chrome', 'content', ].map(async type => {
 		const old = (await readSafe(type));

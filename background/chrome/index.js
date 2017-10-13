@@ -54,11 +54,11 @@ const prefix = `\n/* Do not edit this section of this file (outside the Browser 
 const infix  = `\n/*"*//*'*/;};};};};};}@media not all {} /* reset sequence, do not edit this line */ /*NEXT:${uuid}*/`;
 // This terminator sequence closes open strings, comments, blocks and declarations.
 // The media query seems to "reset" the parser (and doesn't do anything itself).
-// At the same time it serves as split point when the changes to the files are applies to the local edit files.
+// At the same time it serves as split point when the changes to the files are applied to the local edit files.
 const suffix = `\n/*END:${uuid}*/\n`;
 const rExtract = RegExpX('n')`
 	(^|\n) .* \/\*START:${uuid}\*\/ [^]* \/\*END:${uuid}\*\/ (\n|$)
-`;
+`, rExtractSource = rExtract.source.replace(/\\n/g, String.raw`(?:\r\n?|\n)`);
 function extract(file) {
 	return (rExtract.exec(file) || [ '', ])[0].replace(/^\n?.*\n/, '').replace(/\n.*\n?$/, '');
 }
@@ -97,7 +97,7 @@ const writeStyles = debounceIdle(async (clear) => { try {
 		).join('\n')) + suffix
 	));
 
-	(await native.write(files, rExtract.source));
+	(await native.write(files, rExtractSource));
 
 	const changed = Object.entries((await current)).some(([ key, current, ]) => data[key] !== current);
 
@@ -105,6 +105,7 @@ const writeStyles = debounceIdle(async (clear) => { try {
 } catch (error) {
 	reportError(`Failed to write chrome styles`, error);
 } finally { unload(); } }, 1e3);
+
 
 return ChromeStyle;
 

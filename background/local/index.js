@@ -36,12 +36,13 @@ async function enable(init) {
 
 	// console.log('got local styles', files);
 	(await Promise.all(
-		(await Promise.all(Object.entries(files).map(async ([ path, sheet, ]) => { try {
+		(await Promise.all(Object.entries(files).map(async ([ path, css, ]) => { try {
+			css && (css = css.replace(/\r\n?/g, '\n'));
 			if (exclude.test(path)) { return; }
 			const style = (await new LocalStyle(path, ''));
 			styles.set(style.id, style);
 			style.disabled = true;
-			(await style.setSheet(sheet.replace(/\r\n?/g, '\n')));
+			(await style.setSheet(css));
 		} catch (error) { reportError(`Failed to add local style`, path, error); } })))
 	));
 
@@ -60,27 +61,28 @@ async function enable(init) {
 }
 
 async function onCange(path, css) { try {
+	css && (css = css.replace(/\r\n?/g, '\n'));
 	const id = (await Style.url2id(path));
-	const old = styles.get(id);
-	if (old) { if (css) {
-		console.info('change', path);
-		old.setSheet(css);
+	const style = styles.get(id);
+	if (style) { if (css) {
+		const changed = (await style.setSheet(css));
+		console.info(changed ? `File ${path} was changed on disk, reloaded style "${style.options.name.value}"` : `Already knew changes in ${path}`);
 	} else {
-		console.info('delete', path);
-		old.destroy(); styles.delete(id);
+		console.info(`File ${path} was deleted, removing style "${style.options.name.value}"`);
+		style.destroy(); styles.delete(id);
 	} } else if (css) {
-		console.info('create', path);
-		const style = (await new LocalStyle(path, css));
-		styles.set(id, style);
+		const style = (await new LocalStyle(path, css)); styles.set(id, style);
+		console.info(`File ${path} was created, added style "${style.options.name.value}"`);
 	}
-} catch (error) { console.error('Error in fs.watch handler',  error); } }
+} catch (error) { console.error('Error in fs.watch handler', error); } }
 
 async function onChromeChange(path, css) { try {
-	console.log('onChromeChange start');
+	css && (css = css.replace(/\r\n?/g, '\n'));
 	if (!css) { return; } // file deleted
+	console.info(`${path.split(/\\|\//g).pop()} changed, applying changes to local files in ${options.local.children.folder.value} (if any)`);
 	const isChrome = (/[\/\\]userChrome[.]css$/).test(path);
 
-	(await Promise.all(Object.entries(ChromeStyle.extractFiles(css.replace(/\r\n?/g, '\n'))).map(async ([ path, css, ]) => {
+	(await Promise.all(Object.entries(ChromeStyle.extractFiles(css)).map(async ([ path, css, ]) => {
 		const id = (await Style.url2id(path));
 		const style = styles.get(id); if (!style) { return; }
 		if (style.chrome[isChrome ? 'chrome' : 'content'] === css) { return; }
@@ -104,12 +106,11 @@ async function onChromeChange(path, css) { try {
 		}
 
 		const file = parts.join(''); if (file === style.code) { console.error('no change', path); return; }
-		console.log('writing', style.url);
+		console.info(`Found change in "${style.options.name.value}", writing ${style.url}`);
 		native.writeStyle(path, file);
 		style.setSheet(file);
 	})));
-	console.log('onChromeChange done');
-} catch (error) { console.error('Error in fs.watch handler',  error); } }
+} catch (error) { console.error('Error in fs.watch handler', error); } }
 
 function disable() {
 	if (!active) { return; } active = options.local.value = false;

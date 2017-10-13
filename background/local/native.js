@@ -33,7 +33,7 @@ async function readAndWatch(include, dir, onChange) {
 		let stat; try { stat = (await get(FS.stat, path)); } catch (_) { }
 		if (!stat) { return void onChange(path, null); } // delete
 		const file = (await get(FS.readFile, path, 'utf8'));
-		if (file === data[path]) { return void console.log('no change', name); } // ???
+		if (file === data[path]) { return /*void console.log('no change', name)*/; } // ???
 		onChange(path, (data[path] = file));
 	});
 
