@@ -9,6 +9,7 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'<all_urls>',
 	);
 
+	!options.viewRoot && (options.viewRoot = options.chrome ? 'reStyle.html' : 'reStyle');
 	manifestJson.options_ui.open_in_tab = true;
 
 	files.node_modules = [

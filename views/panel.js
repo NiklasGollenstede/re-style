@@ -19,7 +19,7 @@ document.body.innerHTML = `
 		#styles:empty::after { content: '<none>'; opacity: .5; }
 		textarea { width: 100%; resize: vertical; max-height: 8.2em; min-height: 3.5em; overflow-y: scroll; word-break: break-all; }
 	</style>
-	<button id="options">Options</button>
+	<button id="options">All Styles</button>
 	<h3>Active styles</h3>
 	<div id="styles"></div>
 	<h3>Install style</h3>
@@ -27,7 +27,7 @@ document.body.innerHTML = `
 	<button id="add">Add style</button>
 `;
 
-document.querySelector('#options').addEventListener('click', _=>!_.button && openView('options', null, { useExisting: _=>_ !== location, }).then(() => location.view.close()));
+document.querySelector('#options').addEventListener('click', _=>!_.button && openView('styles', null, { useExisting: _=>_ !== location, }).then(() => location.view.close()));
 
 const tab = location.activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(location.activeTab)) : (await Tabs.query({ currentWindow: true, active: true, }))[0];
 

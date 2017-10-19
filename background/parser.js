@@ -254,7 +254,7 @@ function evalString(string) {
 }
 
 function parseMetaBlock(block) {
-	const entries = block.split(/^\ ?\*\ ?@(?=\w)/gm).slice(1);
+	const entries = block.slice(0, -2).split(/^\ ?\*\ ?@(?=\w)/gm).slice(1);
 	const meta = { };
 	for (const entry of entries) {
 		const name = (/^\w+/).exec(entry)[0];
@@ -264,6 +264,21 @@ function parseMetaBlock(block) {
 			} break;
 			case 'description': {
 				meta.description = entry.slice(name.length).replace(/^\ ?\*?\ {0,5}/gm, '').trim();
+			} break;
+			case 'include': {
+				const includes = meta.include = meta.include || [ ];
+				const lines = entry.slice(name.length).split('\n').map(_=>_.replace(/^\s*(?:\*\s*)?|\s*$/g, '')).filter(_=>_);
+				const rule = { name: '', type: 'domain', default: [ ], description: '', };
+				for (const line of lines) {
+					const key = (/^\w+/).exec(line)[0], value = line.slice(key.length).trim();
+					switch (key) {
+						case 'name': case 'type': case 'description': rule[key] = value; break;
+						case 'default': rule.default = value.split(/\s+/g);
+					}
+				}
+				if (!rule.name) { console.error(`ignoring @include rule without name:`, block); }
+				rule.description = rule.description || rule.name;
+				includes.push(rule);
 			}
 		}
 	}

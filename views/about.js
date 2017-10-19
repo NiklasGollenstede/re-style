@@ -2,6 +2,7 @@
 	'node_modules/web-ext-utils/browser/version': { current: currentBrowser, version: browserVersion, },
 	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/options/editor/about': about,
+	'fetch!package.json:json': packageJson,
 }) => ({ document, }) => {
 
 const link = global.document.createElement('link');
@@ -10,7 +11,7 @@ link.rel = 'stylesheet';
 document.body.appendChild(link);
 
 about({
-	manifest,
+	manifest, package: packageJson,
 	host: Object.assign(document.body.appendChild(document.createElement('div')), { id: 'about', }),
 	browser: { name: currentBrowser.replace(/^./, c => c.toUpperCase()), version: browserVersion, },
 });

@@ -53,7 +53,7 @@ const storage = {
 	remove() { return Storage.sync.remove(...arguments); },
 };
 
-const Self = new WeakMap, styles = new Map;
+const Self = new WeakMap, styles = new Map, parent = new WeakMap;
 
 class Style {
 	constructor(url, code) {
@@ -134,8 +134,8 @@ class _Style {
 	})(); }
 
 	getOptionsModel() {
-		const name = [ 0, ];
-		Object.defineProperty(name, '0', { get: () => this.name, enumerable: true, });
+		const name = [ 0, ]; Object.defineProperty(name, '0', { get: () => this.name, enumerable: true, });
+		const code = [ 0, ]; Object.defineProperty(code, '0', { get: () => this.code, enumerable: true, });
 		return {
 			id: {
 				description: this.url,
@@ -158,6 +158,21 @@ class _Style {
 				{ type: 'control', id: 'update',   label: 'Update', },
 				{ type: 'control', id: 'remove',   label: 'Remove', },
 			], },
+			edit: {
+				title: 'Edit',
+				description: `Please note that changes made here are not permanent and will be overwritten on the next update of this style.
+				To customize a style permanently, create a local copy of it.`,
+				expanded: false, default: true,
+				children: {
+					code: { default: code, input: { type: 'code', lang: 'css', }, },
+					apply: { default: true, input: [ { type: 'control', id: 'apply', label: 'Apply', }, { type: 'control', id: 'unedit', label: 'Reset', }, ], },
+				},
+			},
+			include: {
+				title: 'Add to',
+				expanded: false, default: true,
+				children: 'dynamic',
+			},
 		};
 	}
 
@@ -181,9 +196,12 @@ class _Style {
 			} catch(error) { console.error(`Failed to parse ${type} pattern(s) in ${this.url}`, error); } })
 		);
 		this.include.splice(0, Infinity, ...include);
-		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 
-		!this.disabled && this.enable();
+		if (this.disabled) {
+			this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
+		} else {
+			this.enable(); // also fires changed
+		}
 		return true;
 	}
 
@@ -225,8 +243,8 @@ class _Style {
 
 			// this is not going to be accurate (and therefore not exclusive)
 			regexps.forEach(source => {
-				(/chrome\\?:\\\/\\\//).test(source) && chrome_.regexps.push(source);
-				(/(?:resource|moz-extension)\\?:\\\/\\\/|(?:about|blob|data|view-source)\\?:|addons.*mozilla(?:\[\.\]|\\?\\.)org/)
+				(/chrome\\?:\\?\/\\?\//).test(source) && chrome_.regexps.push(source);
+				(/(?:resource|moz-extension)\\?:\\?\/\\?\/|(?:about|blob|data|view-source)\\?:|addons.*mozilla(?:\[\.\]|\\?\\.)org/)
 				.test(source) && content.regexps.push(source);
 				web.regexps.push(source); // could pretty much always (also) match a web page
 			});
@@ -253,6 +271,22 @@ class _Style {
 			if (this.options.children.name.values.isSet) { return; }
 			this.options.children.name.value = ''; this.options.children.name.reset();
 		}
+
+		// dynamic includes
+		this.options.children.include.children
+		.splice(0, Infinity, ...(meta.include || [ ]).map(rule => {
+			const root = new Options({ model: [ {
+				name: rule.name,
+				description: rule.description,
+				default: rule.default,
+				maxLength: Infinity,
+				restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, },
+				input: { type: 'string', default: 'example.com', },
+			}, ], prefix: 'style.'+ this.id +'.include', storage, });
+			parent.set(root.children[0], root);
+			return root.children[0];
+		}))
+		.forEach(old => parent.get(old).destroy());
 
 		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 	}

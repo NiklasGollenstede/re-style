@@ -27,12 +27,18 @@ for (const [ name, Type, ] of Object.entries(Types)) {
 
 Style.onChanged(id => {
 	const style = Style.get(id), element = document.getElementById(id);
-	if (!style) { return void element.remove(); }
+	if (!style) { return void (element && element.remove()); }
+	console.log('onChanged', id, style, element);
 	if (!element) {
-		const list = document.querySelector('#'+ (style instanceof Remote ? 'remote' : 'local'));
-		list.appendChild(createRow(style));
+		const list = document.querySelector('#'+ (style instanceof Remote ? 'remote' : 'local') +'>div');
+		list.appendChild(createRow(style)); // TODO: don't append but insert in the correct place
 	} else {
 		element.classList[style.disabled ? 'add' : 'remove']('disabled');
+		// replace the .include branch
+		const host = element.querySelector('.pref-name-include .pref-children')
+		|| element.querySelector('.pref-name-include .toggle-target').appendChild(createElement('fieldset', { className: 'pref-children', }));
+		Array.from(host.childNodes).forEach(_=>_.remove());
+		new Editor({ options: style.options.include.children, host, });
 	}
 }, { owner: window, });
 
@@ -48,6 +54,11 @@ async function onCommand(style, _, action) { try { switch (action) {
 	case 'disable':  style.disabled = true; break;
 	case 'update':   (await style.update()); break;
 	case 'remove':   (await style.remove()); break;
+	case 'apply': {
+		(await style.setSheet(style.options.edit.children.code.value));
+		style.options.edit.children.code.reset();
+	} break;
+	case 'unedit':   style.options.edit.children.code.reset(); break;
 } } catch (error) { reportError(error); } }
 
 }); })(this);

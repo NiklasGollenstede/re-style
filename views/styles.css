@@ -28,7 +28,8 @@ body {
 .options-host.disabled input[data-id="disable"],
 .options-host:not(.disabled) input[data-id="enable"],
 #local input[data-id="update"],
-#local input[data-id="remove"]
+#local input[data-id="remove"],
+#local .pref-name-edit
 { display: none; }
 
 
@@ -62,11 +63,31 @@ body {
 	width: 80px;
 }
 
+.pref-name-edit,
+.pref-name-include {
+	display: inline;
+	width: 100%;
+	vertical-align: top;
+	line-height: 24px;
+}
+.pref-name-edit .pref-children,
+.pref-name-include .pref-children {
+	border: none; padding: 0; margin: 5px 0 20px 0;
+}
+.pref-name-edit .reset-values,
+.pref-name-include .reset-values {
+	display: none;
+}
+.pref-name-edit textarea {
+	resize: vertical; width: 100%; min-height: 30vh;
+}
+
+
 /**
  * inputs
  */
 
-input {
+input, textarea {
 	border-style: solid;
 	border-width: 1px;
 	outline: none;
@@ -80,4 +101,33 @@ input:focus, input:active:focus {
 }
 input:active:focus {
 	transition-delay: 0.06s;
+}
+
+
+/**
+ * collapsing lists
+ */
+
+.toggle-switch>* {
+	display: inline-block;
+	vertical-align: middle;
+}
+input.toggle-switch ~ label.toggle-switch {
+	cursor: pointer;
+}
+.toggle-marker {
+	font-size: 165%;
+	padding-right: 5px;
+	transition: transform 0.12s;
+	transform-origin: 43% 57%;
+	user-select: none;
+	-moz-user-select: none;
+	-webkit-user-select: none;
+}
+input.toggle-switch:checked ~ *>.toggle-marker {
+	transform: rotate(90deg);
+}
+input.toggle-switch,
+input.toggle-switch:not(:checked) ~ *:not(.toggle-switch) {
+	display: none;
 }
