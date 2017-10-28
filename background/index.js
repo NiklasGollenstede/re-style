@@ -23,7 +23,7 @@ debug && console.info('Ran updates', updated);
 
 
 // browser_action (can not be set in manifest due to fennec incompatibility)
-browserAction.setIcon({ path: manifest.icons[1], });
+browserAction.setIcon({ path: '/icon.svg', });
 browserAction.setPopup({ popup: getUrl({ name: 'panel', }).slice(rootUrl.length - 1).replace('#', '?w=350&h=250#'), });
 fennec && browserAction.onClicked.addListener(() => openView('panel'));
 
