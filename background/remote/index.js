@@ -58,7 +58,11 @@ async function add(/*url*/) {
 	const style = (await new RemoteStyle(url, ''));
 	styles.set(style.id, style); style.onChanged(onChanged);
 	query && (style.options.query.value = query);
-	(await update(style, query));
+	try { (await update(style, query)); }
+	catch (error) {
+		style.destroy();
+		throw error;
+	}
 
 	(await insertUrl(url));
 	return style.id;
@@ -69,11 +73,11 @@ async function update(style, query) {
 
 	const { data, type, } = (await fetchText(style.url + (query ? query.replace(/^\??/, '?') : '')));
 
-	if (!(/^text\/css$/).test(type)) {
+	if ((/^application\/json(?:;|$)/).test(type)) {
 		const json = JSON.parse(data.replace(/\\r(?:\\n)?/g, '\\n'));
 		// TODO: should do some basic data validation
 		(await style.setSheet(json));
-	} else if (!(/^application\/json$/).test(type)) {
+	} else if ((/^text\/(?:css|plain)(?:;|$)/).test(type)) { // also accepts plain text as css
 		const css = data.replace(/\r\n?/g, '\n');
 		(await style.setSheet(css));
 	} else {
