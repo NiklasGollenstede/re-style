@@ -43,8 +43,10 @@ Storage.onChanged.addListener((changes, area) => {
 	Object.entries(changes).forEach(([ key, { newValue, }, ]) => {
 		if (!key.startsWith('style.')) { return; }
 		if (newValue === undefined) { delete sync[key]; } else { sync[key] = newValue; }
-		const style = styles.get((/^style\.([0-9a-f]+)\./).exec(key)[1]);
-		style && Self.get(style).options.onChanged({ [key]: { newValue, }, });
+		const style = Self.get(styles.get((/^style\.([0-9a-f]+)\./).exec(key)[1]));
+		if (!style) { return; }
+		style.options.onChanged({ [key]: { newValue, }, });
+		style.options.children.include.children.forEach(option => parent.get(option).onChanged({ [key]: { newValue, }, }));
 	});
 });
 const storage = {
@@ -212,6 +214,24 @@ class _Style {
 		const sheet = this.sheet = this.sheet || (typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code));
 		const { sections, namespace, meta, } = sheet;
 
+		// dynamic includes
+		const dynamic = this.options.children.include.children;
+		dynamic.splice(0, Infinity, ...(meta.include || [ ]).map(rule => {
+			const root = new Options({ model: [ {
+				name: rule.name, title: rule.title,
+				description: rule.description,
+				default: rule.default,
+				maxLength: Infinity,
+				restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, unique: '.', },
+				input: { type: 'string', default: 'example.com', },
+			}, ], prefix: 'style.'+ this.id +'.include', storage, });
+			const option = root.children[0]; parent.set(option, root);
+			option.onChange(() => !this.disabled && this.enable());
+			return root.children[0];
+		}))
+		.forEach(old => parent.get(old).destroy());
+
+
 		const isXul = rXulNs.test(namespace.replace(/\\(?!\\)/g, ''));
 		const userChrome = [ ], userContent = [ ], webContent = [ ];
 		sections.forEach(section => {
@@ -243,6 +263,8 @@ class _Style {
 
 			// this is not going to be accurate (and therefore not exclusive)
 			regexps.forEach(source => {
+				const custom = dynamic.find(_=>_.name === source);
+				if (custom) { return void web.domains.push(...custom.values.current); }
 				(/chrome\\?:\\?\/\\?\//).test(source) && chrome_.regexps.push(source);
 				(/(?:resource|moz-extension)\\?:\\?\/\\?\/|(?:about|blob|data|view-source)\\?:|addons.*mozilla(?:\[\.\]|\\?\\.)org/)
 				.test(source) && content.regexps.push(source);
@@ -271,22 +293,6 @@ class _Style {
 			if (this.options.children.name.values.isSet) { return; }
 			this.options.children.name.value = ''; this.options.children.name.reset();
 		}
-
-		// dynamic includes
-		this.options.children.include.children
-		.splice(0, Infinity, ...(meta.include || [ ]).map(rule => {
-			const root = new Options({ model: [ {
-				name: rule.name,
-				description: rule.description,
-				default: rule.default,
-				maxLength: Infinity,
-				restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, },
-				input: { type: 'string', default: 'example.com', },
-			}, ], prefix: 'style.'+ this.id +'.include', storage, });
-			parent.set(root.children[0], root);
-			return root.children[0];
-		}))
-		.forEach(old => parent.get(old).destroy());
 
 		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 	}

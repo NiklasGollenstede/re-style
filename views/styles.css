@@ -29,7 +29,8 @@ body {
 .options-host:not(.disabled) input[data-id="enable"],
 #local input[data-id="update"],
 #local input[data-id="remove"],
-#local .pref-name-edit
+#local .pref-name-edit,
+.pref-name-include.empty
 { display: none; }
 
 
@@ -75,11 +76,19 @@ body {
 	border: none; padding: 0; margin: 5px 0 20px 0;
 }
 .pref-name-edit .reset-values,
-.pref-name-include .reset-values {
+.pref-name-include>.reset-values {
 	display: none;
 }
 .pref-name-edit textarea {
 	resize: vertical; width: 100%; min-height: 30vh;
+}
+.pref-name-include .input-row>* {
+	display: inline-block;
+}
+.remove-value-entry,
+.add-value-entry {
+	width: 25px; height: 25px;
+	margin: 0 3px 3px 0;
 }
 
 

@@ -1,5 +1,5 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { browserAction, Tabs, Windows, manifest, rootUrl, },
+	'node_modules/web-ext-utils/browser/': { browserAction, Tabs, Windows, rootUrl, },
 	'node_modules/web-ext-utils/browser/version': { fennec, },
 	'node_modules/web-ext-utils/loader/': Content, // TODO: remove line
 	'node_modules/web-ext-utils/loader/views': { getUrl, openView, },
@@ -13,6 +13,7 @@
 	'./local/': LocalStyle,
 	'./remote/': RemoteStyle,
 	'./web/': ContentStyle,
+	'./util': { isSubDomain, },
 	Parser,
 	Style,
 	module,
@@ -38,9 +39,13 @@ for (const { id: windowId, } of (await Windows.getAll())) {
 }
 async function setBage(tabId, url) {
 	tabId == null && (tabId = (await Tabs.query({ currentWindow: true, active: true, }))[0].id);
-	url = url || (await Tabs.get(tabId)).url;
-	let matching = 0; for (const [ , style, ] of Style) { !style.disabled && style.matches(url) && ++matching; }
-	(await browserAction.setBadgeText({ tabId, text: matching ? matching +'' : '', }));
+	url = new global.URL(url || (await Tabs.get(tabId)).url);
+	let matching = 0, extra = 0; for (const [ , style, ] of Style) {
+		if (style.disabled) { continue; }
+		style.matches(url.href) && ++matching;
+		style.options.include.children.forEach(_=>_.values.current.forEach(domain => isSubDomain(domain, url.hostname) && extra++));
+	}
+	(await browserAction.setBadgeText({ tabId, text: (matching || '') + (extra ? '+'+ extra : ''), }));
 }
 
 

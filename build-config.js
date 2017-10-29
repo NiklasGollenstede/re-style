@@ -1,6 +1,8 @@
 /*eslint strict: ['error', 'global'], no-implicit-globals: 'off'*/ 'use strict'; /* globals module, */ // license: MPL-2.0
 module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 
+	// manifestJson.applications.chrome = { id: 'embimhfddeikmonnjmkdlcgigakajajd', };
+
 	manifestJson.permissions.push(
 		'nativeMessaging',
 		'notifications',

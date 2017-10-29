@@ -38,15 +38,22 @@ Style.onChanged(id => {
 		const host = element.querySelector('.pref-name-include .pref-children')
 		|| element.querySelector('.pref-name-include .toggle-target').appendChild(createElement('fieldset', { className: 'pref-children', }));
 		Array.from(host.childNodes).forEach(_=>_.remove());
-		new Editor({ options: style.options.include.children, host, });
+		if (style.options.include.children.length) {
+			new Editor({ options: style.options.include.children, host, });
+			element.querySelector('.pref-name-include').classList.remove('empty');
+		} else {
+			element.querySelector('.pref-name-include').classList.add('empty');
+		}
 	}
 }, { owner: window, });
 
 function createRow(style) {
-	return new Editor({
+	const element = new Editor({
 		options: style.options, onCommand: onCommand.bind(null, style),
 		host: createElement('div', { id: style.id, className: style.disabled ? 'disabled' : '', }),
 	});
+	!style.options.include.children.length && element.querySelector('.pref-name-include').classList.add('empty');
+	return element;
 }
 
 async function onCommand(style, _, action) { try { switch (action) {

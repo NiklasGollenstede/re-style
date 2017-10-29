@@ -14,6 +14,10 @@ function debounceIdle(callback, minDelay) {
 	};
 }
 
-return { debounceIdle, };
+function isSubDomain(domain, sub) {
+	return sub.endsWith(domain) && (domain.length === sub.length || sub[sub.length - domain.length - 1] === '.');
+}
+
+return { debounceIdle, isSubDomain, };
 
 }); })(this);

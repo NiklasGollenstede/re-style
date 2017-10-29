@@ -268,12 +268,12 @@ function parseMetaBlock(block) {
 			case 'include': {
 				const includes = meta.include = meta.include || [ ];
 				const lines = entry.slice(name.length).split('\n').map(_=>_.replace(/^\s*(?:\*\s*)?|\s*$/g, '')).filter(_=>_);
-				const rule = { name: '', type: 'domain', default: [ ], description: '', };
+				const rule = { name: '', type: 'domain', default: [ ], title: '', description: '', };
 				for (const line of lines) {
 					const key = (/^\w+/).exec(line)[0], value = line.slice(key.length).trim();
 					switch (key) {
-						case 'name': case 'type': case 'description': rule[key] = value; break;
-						case 'default': rule.default = value.split(/\s+/g);
+						case 'name': case 'type': case 'title': case 'description': rule[key] = value; break;
+						case 'default': rule.default = Array.from(new Set(value.split(/\s+/g)));
 					}
 				}
 				if (!rule.name) { console.error(`ignoring @include rule without name:`, block); }
