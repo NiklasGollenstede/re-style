@@ -1,40 +1,44 @@
 
 # reStyle — UI styles for Firefox 57
 
-This user style manager supports the usual installation of styles from URL and polling those URLs for updates. In addition to that:
+This user style manager supports the usual installation of styles from URL  and polling those URLs for updates.
+In addition to that, you can load <b>local styles</b> and apply styles to the <b>browser UI</b>.
 
+<b>Installing styles</b>
 
-## UI styles
+Styles can be installed from userstyles.org, github.com or any other website that offers appropriate styles for download.
+On userstyles.org, open the styles detail page, choose your settings if the style offers any, then click the reStyle icon in the browsers toolbar and "Add style" in the popup.
+On other pages, you need to open the .css file before clicking the reStyle icon.
 
-Starting with Firefox 57, it is no longer possible for Add-ons to directly apply user styles to anything else than normal websites.<br>
+<b>UI styles</b>
+
+Starting with Firefox 57, it is no longer possible for Add-ons to directly apply user styles to anything else than normal websites.
 As a workaround, reStyle recognizes styles that will no longer work and writes them to the
-<code>userCrome.css</code> (e.g. for the UI) and <code>userContent.css</code> (e.g. for about:-pages).<br>
-NOTE: This overwrites all previous content and all changes to those files.<br>
-NOTE: The browser must be restarted for changes to those files to ally.
+<a href="http://kb.mozillazine.org/index.php?title=UserChrome.css"><code>userCrome.css</code></a> (e.g. for the UI) and <a href="http://kb.mozillazine.org/index.php?title=userContent.css"><code>userContent.css</code></a> (e.g. for about:-pages).The only major drawback of this compared to how Stylish for Firefox used to apply styles is that the browser must be restarted for changes to those files to be applied.
 
-Most UI styles will still be broken due to the actual changes in the browser UI, but at least it will be possible to fix that and distribute the styles in a reasonably simple manner.
+Many UI styles will still be broken in Firefox 57+ due to the actual changes in the browser UI, but at least it will be possible to fix that and distribute the styles in a reasonably simple manner.
 
+<b>Development Mode</b>
 
-## Development Mode
+You can load styles from a local folder on your computer as user styles.
+Styles matching normal content pages should be re-applied immediately when the files are saved.
 
-You can load local files as user styles.
-Styles matching normal content pages should be re-applied immediately when the files are saved.<br>
-To apply changes to any of the values below, dis- then enable this option.
+<b>NativeExt</b>
 
+In order to do the things described above, <a href="https://github.com/NiklasGollenstede/native-ext">NativeExt</a> must be installed on the system.
+The add-on contains instructions on how to do that easily.
 
-## NativeExt
+<b>Implementation status</b>
 
-In order to do the things described above, [NativeExt](https://github.com/NiklasGollenstede/native-ext) must be installed on the system.
-To allow reStyle to connect, add this JSON file to `%APPDATA%\de.niklasg.native_ext\vendors\de.niklasg.json`:
-```json
-{
-	"firefox-ext-ids": [
-		"@re-style"
-	],
-	"chrome-ext-urls": [ ]
-}
-```
-Then run the `refresh.bat` in the directory above.
+Reading styles locally, re-applying them on changes and applying UI styles works as intended (there is no way around the restart requirement).
+Applying normal content styles works.
+Updates of remote styles (those installed from the internet) only happen when explicitly requested.
+The UI of this add-on itself still needs some work.
+
+<b>Meta comments</b>
+
+reStyle supports meta comment blocks similar to those used in user scripts. They start with <code>==UserStyle==</code> and can, besides the non-functional properties <code>@name</code>, <code>@author</code>, <code>@license</code> and <code>@description</code>, contain <code>@include</code> rules, which allow authors to wirte styles that can be included on domains chosen by the user via reStyles UI.
+
 
 ## Build
 
@@ -49,9 +53,21 @@ Then compress with `pngquant`.
 
 ## Project layout
 
+The internal style management is entirely handled by scripts in the `/background/` folder, `/common/` contains a declarative description of the `#options` the user can set and `/views/` contains the `.js` and `.css` files that create reStyles UI (popup, extension pages).
+
+### Styles
+
 There are tow places styles can come from and two places they can go. Styles can be installed as
+* [`RemoteStyle`](./background/remote/index.js)s from any URL that points at a `.css` file (or `.json` in the format used by `userstyles.org`)
+* [`LocalStyle`](./background/remote/index.js)s from a user chosen directory on the local computer.
 
-* `/remote/`: `RemoteStyle`s from any URL that points at a `.css` file (or `.json` in the format used by `userstyles.org`)
-* `/local/`: `LocalStyle`s from a user chosen directory on the local computer.
+both extend [`Style`](./background/style.js). Their code is [parsed](./background/parser.js) into a `Sheet` with each `@document` block as a `Section`.
+When activated, the `Style` sorts through it's `Section`s and detects wether each section
+* can be dynammically applied as a [`WebStyle`](./background/web/index.js)
+* or has to be written to `userChrome`/`Content.css` as a [`ChromeStyle`](./background/chrome/index.js) (which has a `.chrome` and a `.content` property.
 
-both extend `Style` ... TBC
+`RemoteStyle`s store a JSON representation of themselves in `browser.storage.local` and can be restored after restarts with quite little computational effort. `LocalStyles` are re-parsed from their files on the disk at every start.
+
+### Views
+
+Every `.js` or `.html` file of folder with a `index.js` or `index.html` in the `/views/` folder will implicitly result in a extension page aviable as `...-extension://.../reStyle#<file/folder name without ext>`. The scripts themselfs are loaded in the background context and must export a function that will be passed the `window` of the visible page when one with the matching `#`name is opened.
