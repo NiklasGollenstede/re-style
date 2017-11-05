@@ -47,12 +47,18 @@ body {
 }
 
 .pref-name-name,
-.pref-name-controls {
+.pref-name-controls,
+.toggle-switch {
 	display: inline-block;
+}
+.pref-name-name input,
+.pref-name-controls input,
+.toggle-switch {
+	height: 25px;
 }
 
 .pref-name-name input {
-	width: 380px;
+	width: 340px;
 	max-width: calc(100vw - 45px);
 	margin-right: 10px;
 }

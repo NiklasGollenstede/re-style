@@ -4,7 +4,7 @@
 	'node_modules/web-ext-utils/loader/': Content, // TODO: remove line
 	'node_modules/web-ext-utils/loader/views': { getUrl, openView, },
 	'node_modules/web-ext-utils/update/': updated,
-	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
 	'node_modules/es6lib/functional': { debounce, },
 	'node_modules/native-ext/': Native,
 	'common/options': options,
@@ -30,7 +30,6 @@ fennec && browserAction.onClicked.addListener(() => openView('panel'));
 
 
 // badge text
-browserAction.setBadgeBackgroundColor({ color: [ 0x00, 0x7f, 0x00, 0x60, ], });
 Tabs.onActivated.addListener(({ tabId, }) => setBage(tabId));
 Tabs.onUpdated.addListener((tabId, change, { active, }) => active && ('url' in change) && setBage(tabId, change.url));
 Style.onChanged(debounce(() => setBage(), 50));
@@ -45,10 +44,24 @@ async function setBage(tabId, url) {
 		style.matches(url.href) && ++matching;
 		style.options.include.children.forEach(_=>_.values.current.forEach(domain => isSubDomain(domain, url.hostname) && extra++));
 	}
-	(await browserAction.setBadgeText({ tabId, text: (matching || '') + (extra ? '+'+ extra : ''), }));
+	(await browserAction.setBadgeText({ tabId, text: (matching || '') + (extra ? '+'+ extra : '') || (ChromeStyle.changed ? '!' : ''), }));
 }
 
 
+// badge color
+const colors = { normal: [ 0x00, 0x7f, 0x00, 0x60, ], restart: [ 0xa5, 0x50, 0x00, 0xff, ], };
+browserAction.setBadgeBackgroundColor({ color: colors.normal, });
+ChromeStyle.onWritten(changed => {
+	browserAction.setBadgeBackgroundColor({ color: changed ? colors.restart : colors.normal, });
+	reportSuccess(
+		`The UI styles were written`, changed
+		? `and have changed. The browser must be restarted to apply the changes!`
+		: `and changed back. No need to restart the browser anymore!`
+	);
+});
+
+
+// handle uncaught exceptions/rejections in the native modules to prevent the process from exiting
 Native.onUncaughtException(error => { reportError('Unhandled error in native code', error); /*Native.nuke();*/ });
 Native.onUnhandledRejection(error => { reportError('Unhandled rejection in native code', error); /*Native.nuke();*/ });
 

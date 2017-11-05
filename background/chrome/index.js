@@ -1,6 +1,7 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, rootUrl, },
-	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
+	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/web-ext-utils/utils/event': { setEvent, },
 	'node_modules/native-ext/': Native,
 	'node_modules/es6lib/functional': { debounce, },
 	'node_modules/regexpx/': RegExpX,
@@ -21,6 +22,8 @@ class ChromeStyle {
 		this.content = (content || '').toString({ minify: false, important: true, namespace: false, }).trim().replace(/\r\n?/g, '\n');
 		writeStyles();
 	}
+
+	static get changed() { return changed; }
 
 	destroy() {
 		if (!styles.has(this)) { return; }
@@ -44,8 +47,8 @@ class ChromeStyle {
 		}); return files;
 	}
 
-} const styles = new Set;
-
+} const styles = new Set; let changed = false;
+const fireWritten = setEvent(ChromeStyle, 'onWritten', { lazy: false, async: true, });
 
 const uuid = rootUrl.slice('moz-extension://'.length, -1);
 // This is unique for each (firefox) extension installation and makes sure that prefix, infix and suffix are unpredictable for the style authors
@@ -99,9 +102,9 @@ const writeStyles = debounceIdle(async (clear) => { try {
 
 	(await native.write(files, rExtractSource));
 
-	const changed = Object.entries((await current)).some(([ key, current, ]) => data[key] !== current);
+	changed = Object.entries((await current)).some(([ key, current, ]) => data[key] !== current);
 
-	changed && reportSuccess(`The UI styles were changed`, `restart the browser to apply the changes`);
+	fireWritten([ changed, ]);
 } catch (error) {
 	reportError(`Failed to write chrome styles`, error);
 } finally { unload(); } }, 1e3);

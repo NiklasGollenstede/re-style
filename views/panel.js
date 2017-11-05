@@ -4,7 +4,8 @@
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
 	'node_modules/es6lib/dom': { createElement, },
 	'background/style': Style,
-	'background/remote/': Remote,
+	'background/chrome/': ChromeSytle,
+	'background/remote/': RemoteSytle,
 	'background/remote/map-url': mapUrl,
 	'background/util': { isSubDomain, },
 }) => async (window, location) => {
@@ -15,6 +16,7 @@ document.body.innerHTML = `
 		:root { background: #424F5A; filter: invert(1) hue-rotate(180deg); font-family: Segoe UI, Tahoma, sans-serif; overflow: hidden; }
 		:root { box-sizing: border-box; } * { box-sizing: inherit; }
 		:root { width: 350px; margin-bottom: -1px; } body { width: 333px; margin 8px; }
+		#restart { background: #F49F00; padding: 5px; position:fixed;top:0;left:0;right:0; } code { font-size: 120%; }
 		#all { position: absolute; top: 11px; right: 9px; }
 		h3 { margin: 0; cursor: default; } #styles { margin-bottom: 10px; max-height: 250px; overflow-y: auto; }
 		#styles:empty::after { content: '<none>'; opacity: .5; }
@@ -30,6 +32,13 @@ document.body.innerHTML = `
 	<button id="add">Add style</button>
 `;
 const tab = location.activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(location.activeTab)) : (await Tabs.query({ currentWindow: true, active: true, }))[0];
+
+
+// restart notice
+if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div id="restart">
+	The UI styles have changed. The browser has to be restarted to apply the changes.<br>
+	You can do that e.g. by prssting <code>Shift</code>+<code>F2</code> and typing <code>restart</code> (then <code>enter</code>).
+</div><style> body { margin-top: 105px; } #all { transform: translateY(97px); } </style>`); }
 
 
 /// all styles button
@@ -48,9 +57,9 @@ const add = document.querySelector('#add');
 add.addEventListener('click', event => {
 	if (event.button) { return; }
 	const url = input.value.trim(); add.disabled = true;
-	Remote.add(url).then( style => {
+	RemoteSytle.add(url).then(style => {
 		if (!style.name || (/^\d+$/).test(style)) {
-			style.options.name.value = tab.title.split(/-|–|—|\||::|·/)[0].trim();
+			style.options.name.value = tab.title.split(/-|–|—|\||::|·/)[0].trim(); // TODO: should set the internal name field instead
 		}
 		reportSuccess(`Style added`, `from "${ url }"`);
 		input.value = ''; add.disabled = false;

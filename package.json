@@ -13,10 +13,10 @@
 	"dependencies": {
 		"browserify": "14.4.0",
 		"es6lib": "0.0.2",
-		"native-ext": "0.2.0",
+		"native-ext": "0.2.1",
 		"regexpx": "0.1.4",
 		"web-ext-build": "0.0.6",
-		"web-ext-utils": "0.0.15"
+		"web-ext-utils": "0.0.16"
 	},
 	"devDependencies": {
 		"babel-eslint": "7.1.1",
