@@ -83,7 +83,7 @@ const model = {
 		default: +isBeta,
 		hidden: !isBeta,
 		restrict: { type: 'number', from: 0, to: 2, },
-		input: { type: 'integer', suffix: `set to > 0 to enable debugging`, },
+		input: { type: 'integer', suffix: `set to > 0 to enable some diagnostic logging`, },
 	},
 };
 

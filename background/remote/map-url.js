@@ -2,13 +2,13 @@
 
 async function mapUrl(url, tab) { switch (true) {
 	case (/^https?:\/\/userstyles\.org\/styles\/\d+/).test(url): {
-		if (!tab) { return 'https://userstyles.org/styles/'+ (/\d+/).exec(url)[0] +'.css'; }
+		const id =  (/\d+/).exec(url)[0];
+		if (!tab) { return `https://userstyles.org/styles/${id}.css`; }
 		let query; try { query = (await
 			(await require.async('node_modules/web-ext-utils/loader/'))
 			.runInFrame(tab.id, 0, readUserstylesOrgOptions)
 		); } catch (error) { console.error(error); }
-		if (!query) { return 'https://userstyles.org/styles/'+ (/\d+/).exec(url)[0] +'.css'; }
-		return 'https://userstyles.org/styles/chrome/'+ (/\d+/).exec(url)[0] +'.css?'+ query;
+		return `https://userstyles.org/styles/${id}.css` + (query ? '?'+ query : '');
 	}
 	case (/^https:\/\/github.com\/[\w-]+\/[\w-]+\/blob\/master\/.*\.css/).test(url): {
 		return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/master/', '/master/');

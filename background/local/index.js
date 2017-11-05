@@ -48,7 +48,7 @@ async function enable(init) {
 
 	if (init) { // on initial enable, sync with ../remote/
 		if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); }
-		else { (await Promise.race([ new Promise(done => (global.__startupSyncPoint__ = done)), require.async('../local/'), ])); }
+		else { (await new Promise((resolve, reject) => { global.__startupSyncPoint__ = resolve; require.async('../remote/').catch(reject); })); }
 		delete global.__startupSyncPoint__;
 	}
 

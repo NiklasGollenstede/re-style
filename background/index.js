@@ -58,7 +58,7 @@ Object.assign(global, module.exports = {
 	Browser: require('node_modules/web-ext-utils/browser/'),
 	options,
 	Parser,
-	background: global,
+	Native,
 	ContentStyle,
 	ChromeStyle,
 	LocalStyle,

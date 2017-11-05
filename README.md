@@ -6,7 +6,7 @@ In addition to that, you can load <b>local styles</b> and apply styles to the <b
 
 <b>Installing styles</b>
 
-Styles can be installed from userstyles.org, github.com or any other website that offers appropriate styles for download.
+Styles can be installed from userstyles.org, GitHub or any other website that offers appropriate styles for download.
 On userstyles.org, open the styles detail page, choose your settings if the style offers any, then click the reStyle icon in the browsers toolbar and "Add style" in the popup.
 On other pages, you need to open the .css file before clicking the reStyle icon.
 

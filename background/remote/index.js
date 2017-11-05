@@ -39,7 +39,7 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 	} catch (error) { reportError(`Failed to restore remote style`, url, error); } })));
 
 	if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } // sync with ../local/
-	else { (await Promise.race([ new Promise(done => (global.__startupSyncPoint__ = done)), require.async('../local/'), ])); }
+	else { (await new Promise((resolve, reject) => { global.__startupSyncPoint__ = resolve; require.async('../local/').catch(reject); })); }
 
 	// enable all styles at once to allow later optimizations
 	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore remote style`, error); } });
@@ -58,14 +58,16 @@ async function add(/*url*/) {
 	const style = (await new RemoteStyle(url, ''));
 	styles.set(style.id, style); style.onChanged(onChanged);
 	query && (style.options.query.value = query);
-	try { (await update(style, query)); }
-	catch (error) {
+	try {
+		(await update(style, query));
+		if (!style.code) { throw new Error(`Can not install an empty style sheet`); }
+	} catch (error) {
 		style.destroy();
 		throw error;
 	}
 
 	(await insertUrl(url));
-	return style.id;
+	return style;
 }
 
 async function update(style, query) {

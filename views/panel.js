@@ -48,17 +48,25 @@ const add = document.querySelector('#add');
 add.addEventListener('click', event => {
 	if (event.button) { return; }
 	const url = input.value.trim(); add.disabled = true;
-	Remote.add(url).then(
-		() => { reportSuccess(`Style added`, `from "${ url }"`); input.value = ''; add.disabled = false; },
-		error => { reportError(`Failed to add style from "${ url }"`, error); add.disabled = false; },
-	);
+	Remote.add(url).then( style => {
+		if (!style.name || (/^\d+$/).test(style)) {
+			style.options.name.value = tab.title.split(/-|–|—|\||::|·/)[0].trim();
+		}
+		reportSuccess(`Style added`, `from "${ url }"`);
+		input.value = ''; add.disabled = false;
+	}, error => {
+		add.disabled = false;
+		reportError(`Failed to add style from "${ url }"`, error);
+	}, );
 });
 
 
 /// active styles list
 const list = document.querySelector('#styles'), url = new global.URL(tab.url);
 const styles = Array.from(Style, _=>_[1]).filter(style => (
-	style.matches(url.href) || style.options.include.children.some(_=>_.values.current.some(domain => isSubDomain(domain, url.hostname)))
+	style.matches(url.href) || style.options.include.children.some(
+		_=>_.values.current.some(domain => isSubDomain(domain, url.hostname))
+	)
 )).sort((a, b) => a.url < b.url ? -1 : 1);
 
 styles.forEach(appendStyle); function appendStyle(style) {
@@ -85,8 +93,9 @@ styles.forEach(appendStyle); function appendStyle(style) {
 						value && value.split(/\s+/g).forEach(value => values.add(value));
 						(await include.values.replace(Array.from(values)));
 						document.getElementById(style.id).remove();
-						(style.matches(url.href) || style.options.include.children.some(_=>_.values.current.some(domain => isSubDomain(domain, url.hostname))))
-						&& appendStyle(style);
+						if (style.matches(url.href) || style.options.include.children.some(
+							_=>_.values.current.some(domain => isSubDomain(domain, url.hostname))
+						)) { appendStyle(style); }
 					},
 				}),
 			]);
