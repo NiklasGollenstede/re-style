@@ -24,11 +24,6 @@ const model = {
 				default: true,
 				input: [ { type: 'control', label: `Import`, suffix: `styles from a whitespace separated list of URLs.`, id: `import-from-urls`, }, ],
 			},
-			fetchWithNode: {
-				default: false,
-				restrict: { type: 'boolean', },
-				input: { type: 'boolean', suffix: `use node.js to fetch scripts`, },
-			},
 		},
 	},
 	chrome: {

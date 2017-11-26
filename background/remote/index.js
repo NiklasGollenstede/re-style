@@ -73,7 +73,8 @@ async function add(/*url*/) {
 async function update(style, query) {
 	query = query || style.options.query.value;
 
-	const { data, type, } = (await fetchText(style.url + (query ? query.replace(/^\??/, '?') : '')));
+	const reply = (await global.fetch(style.url + (query ? query.replace(/^\??/, '?') : '')));
+	const type = reply.headers.get('content-type'), data = (await reply.text());
 
 	if ((/^application\/json(?:;|$)/).test(type)) {
 		const json = JSON.parse(data.replace(/\\r(?:\\n)?/g, '\\n'));
@@ -94,19 +95,6 @@ async function remove(style) {
 	(await removeUrl(url));
 
 	style.destroy(true); styles.delete(id);
-}
-
-async function fetchText(url) {
-	if (!options.remote.children.fetchWithNode.value) {
-		const reply = (await global.fetch(url));
-		const type = reply.headers.get('content-type');
-		return { data: (await reply.text()), type, };
-	} else {
-		const fetchText = (await Native.require(require.resolve('./native')));
-		const reply = (await fetchText(url));
-		Native.unref(fetchText);
-		return reply;
-	}
 }
 
 let running = Promise.resolve(); // like a mutex for mutation operations on the urlList
