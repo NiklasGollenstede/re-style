@@ -1,4 +1,5 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/es6lib/dom': { createElement, },
@@ -6,18 +7,35 @@
 	'background/remote/': Remote,
 	'background/style': Style,
 	'fetch!./styles.css': css,
-}) => async window => {
-const { document, } = window;
-const Types = { Remote, Local, };
+}) => async window => { const { document, } = window;
+
+const Sections = {
+	remote: {
+		Type: Remote,
+		title: 'Remote',
+		empty: `To add styles from the Internet (e.g. from <a href="https://www.userstyles.org" target="_blank">userstyles.org</a> or GitHub),
+		navgate to the styles site, click the ${manifest.name} icon in the Browser UI and click <code>Add Style</code>.<br>
+		You can also just paste an URL of a style in the textbox above that button or use the <code>Import</code> button on the options page.`,
+	},
+	local: {
+		Type: Local,
+		title: 'Local',
+		empty: `To start adding local styles, follow the <a href="#setup">setup</a> and enable <a href="#options#.local">Development Mode</a>.`,
+		after: `To disable local styles permanently, add their names to the <a href="#options#.local.exclude">exclude list</a>.`,
+	},
+};
 
 document.head.appendChild(createElement('style', [ css, ]));
 
-for (const [ name, Type, ] of Object.entries(Types)) {
+for (const [ name, { Type, title, before, empty, after, }, ] of Object.entries(Sections)) {
 	let list; document.body.appendChild(createElement('div', {
-		className: 'section', id: name.toLowerCase(),
+		className: 'section', id: name,
 	}, [
-		createElement('h1', [ name, ]),
-		list = createElement('div'),
+		createElement('h1', [ title, ]),
+		createElement('p', { className: 'before', innerHTML: before || '', }),
+		list = createElement('div', { className: 'list', }),
+		createElement('p', { className: 'if-empty', innerHTML: empty || '', }),
+		createElement('p', { className: 'after', innerHTML: after || '', }),
 	]));
 
 	const entries = Array.from(Type, _=>_[1]).sort((a, b) => a.url < b.url ? -1 : 1);
@@ -28,10 +46,10 @@ for (const [ name, Type, ] of Object.entries(Types)) {
 Style.onChanged(id => {
 	const style = Style.get(id), element = document.getElementById(id);
 	if (!style) { return void (element && element.remove()); }
-	console.log('onChanged', id, style, element);
+	// console.log('onChanged', id, style, element);
 	if (!element) {
 		const list = document.querySelector('#'+ (style instanceof Remote ? 'remote' : 'local') +'>div');
-		list.appendChild(createRow(style)); // TODO: don't append but insert in the correct place
+		list.insertBefore(createRow(style), Array.from(list.children).find(row => row.dataset.url > style.url));
 	} else {
 		element.classList[style.disabled ? 'add' : 'remove']('disabled');
 		// replace the .include branch
@@ -50,7 +68,7 @@ Style.onChanged(id => {
 function createRow(style) {
 	const element = new Editor({
 		options: style.options, onCommand: onCommand.bind(null, style),
-		host: createElement('div', { id: style.id, className: style.disabled ? 'disabled' : '', }),
+		host: createElement('div', { id: style.id, className: style.disabled ? 'disabled' : '', dataset: { url: style.url, }, }),
 	});
 	!style.options.include.children.length && element.querySelector('.pref-name-include').classList.add('empty');
 	return element;

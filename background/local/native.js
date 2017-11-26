@@ -8,6 +8,7 @@ const cb2watcher = new WeakMap;
 async function readAndWatch(include, dir, onChange) {
 	dir = dir.replace(/\\/g, '/').replace(/^~(?=[\\\/])/, () => require('os').homedir());
 	const data = { }, mtime = { };
+	try { (await get(FS.access, dir)); } catch (error) { return null; }
 	(await (async function read(dir) {
 		for (const name of (await get(FS.readdir, dir))) {
 			// console.log('check', dir, name);

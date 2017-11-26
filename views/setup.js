@@ -19,7 +19,7 @@ document.body.innerHTML = `
 			After the installation, you should get a success message.</li>
 		<li><button id="save-script">Save</button><span class="unix-only">, extract</span> and run <a id="show-script" href target="_blank">this script</a>.
 			After dismissing some security warnings, you should see another a success message.</li>
-		<li>Done! you can now enable <b>UI Styles</b> and the <b>Development Mode</b> in the options.</li>
+		<li>Done! you can now enable <a href="#options#.chrome"><b>UI Styles</b></a> and the <a href="#options#.local"><b>Development Mode</b></a> in the options.</li>
 	</ol>
 `; // TODO: on mac, open with 'Archive Utility', ctrl+click `add ${manifest.name}.command`, 'Open' -> 'Open'
 

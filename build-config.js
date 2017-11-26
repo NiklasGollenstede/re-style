@@ -20,6 +20,7 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'native-ext/index.js',
 		'native-ext/install.js',
 		'native-ext/tar.js',
+		'native-ext/version-native.js',
 		'regexpx/index.js',
 		'web-ext-utils/browser/index.js',
 		'web-ext-utils/browser/version.js',

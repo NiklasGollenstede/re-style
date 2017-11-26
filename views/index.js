@@ -31,6 +31,7 @@ return new Home({
 	index: 'styles',
 	style: [ 'vertical', 'firefox', 'dark', ],
 	head: [
+		createElement('base', { target: '_top', }),
 		createElement('style', [ css +`\n/*# sourceURL=/node_modules/web-ext-utils/options/editor/dark.css */`, ]),
 	],
 });

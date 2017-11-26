@@ -1,4 +1,6 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+	'node_modules/web-ext-utils/browser/': { manifest, },
+	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/native-ext/': Native,
 	'common/options': options,
@@ -22,6 +24,12 @@ if (active) { enable(true).catch(reportError); } else { if (global.__startupSync
 
 async function enable(init) {
 	if (active && !init) { return; } active = options.local.value = true;
+
+	if (!(await Native.test())) {
+		reportError(`NativeExt unaviable`, `${manifest.name} could not connect to it's native counterpart. To use local styles, please follow the setup instructions.`);
+		disable(); openView('setup'); return;
+	}
+
 	// console.log('enable local styles');
 	exclude = new RegExp(options.local.children.exclude.value || '^.^');
 	native = (await Native.require(
@@ -33,6 +41,10 @@ async function enable(init) {
 	));
 
 	const files = (await native.readStyles(options.local.children.folder.value, onCange));
+
+	if (files === null) { return void reportError(`Can't read local dir`,
+		`The folder "${options.local.children.folder.value}" does not exist of can not be read. To use local styles, create the folder or change it in the options.`
+	); }
 
 	// console.log('got local styles', files);
 	(await Promise.all(
@@ -62,6 +74,7 @@ async function enable(init) {
 
 async function onCange(path, css) { try {
 	css && (css = css.replace(/\r\n?/g, '\n'));
+	if (exclude.test(path)) { return; }
 	const id = (await Style.url2id(path));
 	const style = styles.get(id);
 	if (style) { if (css) {
@@ -116,7 +129,7 @@ function disable() {
 	if (!active) { return; } active = options.local.value = false;
 	// console.log('disable local styles');
 	Array.from(styles.values(), _=>_.destroy()); styles.clear();
-	native.release(onCange);
+	native && native.release(onCange);
 	Native.unref(native); native = null;
 }
 

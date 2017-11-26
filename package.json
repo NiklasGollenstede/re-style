@@ -1,6 +1,6 @@
 {
 	"name": "re-style",
-	"version": "0.2.1",
+	"version": "0.2.3",
 	"title": "reStyle",
 	"description": "A user style manager for Firefox 57+ which can load local files and apply UI styles",
 	"author": "Niklas Gollenstede",
@@ -9,11 +9,17 @@
 		"type": "git",
 		"url": "https://github.com/NiklasGollenstede/re-style"
 	},
-	"contributions": [],
+	"contributions": [
+		{
+			"what": { "name": "Wand Icon", "url": "/icon.svg" },
+			"who": { "name": "Freepik", "url": "https://www.freepik.com/" },
+			"license": { "name": "CC 3.0 BY", "url": "https://creativecommons.org/licenses/by/3.0/" }
+		}
+	],
 	"dependencies": {
 		"browserify": "14.4.0",
 		"es6lib": "0.0.2",
-		"native-ext": "0.2.1",
+		"native-ext": "0.2.2",
 		"regexpx": "0.1.4",
 		"web-ext-build": "0.0.6",
 		"web-ext-utils": "0.0.16"

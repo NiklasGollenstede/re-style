@@ -46,9 +46,9 @@ const model = {
 		title: 'Development Mode',
 		// expanded: false,
 		description: `You can load local files as user styles.
-		Styles matching normal content pages should be re-applied immediately when the files are saved.<br>
+		Styles matching normal web pages should be re-applied immediately when the files are saved.<br>
 		To apply changes to any of the values below, dis- then enable this option`,
-		default: true,
+		default: false,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
 		children: {

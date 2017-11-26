@@ -19,6 +19,20 @@ body {
 
 
 /**
+ * tips
+ */
+
+#local #\.controls .inputs-wrapper::after {
+	content: 'untill restarted';
+	padding-right: 10px;
+}
+
+*:not(:empty) + .if-empty {
+	display: none;
+}
+
+
+/**
  * state
  */
 

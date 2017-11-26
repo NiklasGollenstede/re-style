@@ -51,13 +51,14 @@ async function setBage(tabId, url) {
 // badge color
 const colors = { normal: [ 0x00, 0x7f, 0x00, 0x60, ], restart: [ 0xa5, 0x50, 0x00, 0xff, ], };
 browserAction.setBadgeBackgroundColor({ color: colors.normal, });
-ChromeStyle.onWritten(changed => {
+let wasChanged = false; ChromeStyle.onWritten(changed => {
 	browserAction.setBadgeBackgroundColor({ color: changed ? colors.restart : colors.normal, });
-	reportSuccess(
+	(changed || wasChanged) && reportSuccess(
 		`The UI styles were written`, changed
 		? `and have changed. The browser must be restarted to apply the changes!`
 		: `and changed back. No need to restart the browser anymore!`
 	);
+	wasChanged = changed; setBage();
 });
 
 

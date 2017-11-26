@@ -13,11 +13,12 @@ const { document, } = window;
 
 document.body.innerHTML = `
 	<style>
-		:root { background: #424F5A; filter: invert(1) hue-rotate(180deg); font-family: Segoe UI, Tahoma, sans-serif; overflow: hidden; }
+		:root { font-family: Segoe UI, Tahoma, sans-serif; overflow: hidden; }
+		:root, body { background: #424F5A; } body>* { filter: invert(1) hue-rotate(180deg); }
 		:root { box-sizing: border-box; } * { box-sizing: inherit; }
 		:root { width: 350px; margin-bottom: -1px; } body { width: 333px; margin 8px; }
 		#restart { background: #F49F00; padding: 5px; position:fixed;top:0;left:0;right:0; } code { font-size: 120%; }
-		#all { position: absolute; top: 11px; right: 9px; }
+		#all { position: absolute; z-index: 1; top: 11px; right: 9px; }
 		h3 { margin: 0; cursor: default; } #styles { margin-bottom: 10px; max-height: 250px; overflow-y: auto; }
 		#styles:empty::after { content: '<none>'; opacity: .5; }
 		.includes { margin-left: 30px; } .includes input { margin-left: 6px; }

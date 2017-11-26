@@ -1,5 +1,6 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, rootUrl, },
+	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/web-ext-utils/utils/event': { setEvent, },
 	'node_modules/native-ext/': Native,
@@ -67,27 +68,22 @@ function extract(file) {
 }
 
 
-let native = null; const load = async () => native || (
-	native = (await Native.require(require.resolve('./native')))
-), unload = debounce(() => {
+let native = null; const load = async () => {
+	if (native) { return native; }
+	if (!(await Native.test())) {
+		reportError(`NativeExt unaviable`, `${manifest.name} could not connect to it's native counterpart. To use chrome styles, please follow the setup instructions.`);
+		active = options.chrome.value = false; openView('setup'); return null;
+	}
+	return (native = (await Native.require(require.resolve('./native'))));
+}, unload = debounce(() => {
 	Native.unref(native); native = null;
 }, 60e3);
 
 
-let current; options.chrome.whenChange(([ value, ]) => { value && !current && getCurrent(); });
-function getCurrent() { current = (async () => {
-	(await load()); const files = (await native.read());
-	Object.keys(files).forEach(key => {
-		files[key] = extract(files[key].replace(/\r\n?/g, '\n'));
-	});
-	unload(); return files;
-})(); }
-
-
-let active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; writeStyles(!value); });
+let current = null, active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; writeStyles(!value); });
 const writeStyles = debounceIdle(async (clear) => { try {
 
-	if (!active && !clear) { return; } (await load());
+	if (!active && (!clear || !current)) { return; } if (!(await load())) { return; }
 	const sorted = clear ? null : Array.from(styles).sort((a, b) => a.path < b.path ? -1 : 1);
 
 	// TODO: this throws all @namespace declarations into a single file. Is that even supposed to work? Do later (default) declarations overwrite earlier ones?
@@ -99,6 +95,13 @@ const writeStyles = debounceIdle(async (clear) => { try {
 			style => `/* ${style.path} */\n${style[type]}${infix}`
 		).join('\n')) + suffix
 	));
+
+	if (!current) {
+		current = (await native.read());
+		Object.keys(current).forEach(key => {
+			current[key] = extract(current[key].replace(/\r\n?/g, '\n'));
+		});
+	}
 
 	(await native.write(files, rExtractSource));
 
