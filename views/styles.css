@@ -89,10 +89,16 @@ body {
 	display: inline;
 	width: 100%;
 	vertical-align: top;
-	line-height: 24px;
 }
-.pref-name-edit .pref-children,
-.pref-name-include .pref-children {
+.pref-name-edit>.toggle-switch,
+.pref-name-include>.toggle-switch {
+	line-height: 26px;
+}
+.pref-name-edit>.toggle-target,
+.pref-name-include>.toggle-target {
+	margin-top: 8px;
+}
+.pref-name-edit .pref-children {
 	border: none; padding: 0; margin: 5px 0 20px 0;
 }
 .pref-name-edit .reset-values,
@@ -104,6 +110,10 @@ body {
 }
 .pref-name-include .input-row>* {
 	display: inline-block;
+}
+.pref-name-include .pref-children {
+	margin: 5px 0 20px 0;
+	border-radius: 3px;
 }
 .remove-value-entry,
 .add-value-entry {
@@ -159,4 +169,43 @@ input.toggle-switch:checked ~ *>.toggle-marker {
 input.toggle-switch,
 input.toggle-switch:not(:checked) ~ *:not(.toggle-switch) {
 	display: none;
+}
+
+
+/* reset buttons */
+.reset-values {
+	display: inline-block;
+	padding-right: 16px;
+	opacity: 0.7;
+}
+input.toggle-switch:not(:checked) ~ .reset-values,
+.pref-container:not(:hover)>.reset-values {
+	color: transparent;
+	pointer-events: none;
+}
+.reset-values>a {
+	cursor: pointer;
+	color: inherit;
+	transition-property: color;
+	transition-duration: 0.08s;
+    position: relative;
+    bottom: 0.1em;
+    left: 0.8em;
+    text-decoration: underline;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+}
+.reset-values>a::before {
+	content: '[';
+    left: -0.4em;
+}
+.reset-values>a::after {
+	content: ']';
+    right: -0.4em;
+}
+.reset-values>a::before,
+.reset-values>a::after {
+    position: absolute;
+    pointer-events: none;
 }

@@ -11,8 +11,8 @@ let message; switch (code) {
 	default:    message = `The page "${ name }" does not exist`; break;
 }
 
-body.innerHTML = `<h1 id="code"></h1><h3 id="message"></h3>`;
-body.querySelector('#code').textContent = code;
+body.innerHTML = `<style>:root{font-family:Segoe UI,Tahoma,sans-serif;}</style><h1 id=code></h1><h3 id=message></h3>`;
+body.querySelector('#code').textContent = code || 404;
 body.querySelector('#message').textContent = message;
 
 }); })(this);

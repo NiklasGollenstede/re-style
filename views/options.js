@@ -2,8 +2,8 @@
 	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
-	'node_modules/es6lib/dom': { createElement, },
-	'background/remote/': Remote,
+	'node_modules/es6lib/dom': { createElement, writeToClipboard, },
+	'background/remote/': RemoteStyle,
 	'background/remote/map-url': mapUrl,
 	'common/options': options,
 	'fetch!node_modules/web-ext-utils/options/editor/index.css': css,
@@ -14,22 +14,22 @@ document.head.appendChild(createElement('style', [ css, ]));
 
 new Editor({
 	options, prefix: '', onCommand,
-	host: Object.assign(document.body.appendChild(global.document.createElement('form')), { id: 'options', }),
+	host: document.body.appendChild(createElement('form', { id: 'options', })),
 });
 
 async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (name) {
 	case 'export': {
-		throw new Error(`Not implemented`);
-		// (await writeToClipboard({ 'application/json': json, 'text/plain': json, }));
-		// reportSuccess('Copied', 'The URl list has been put into your clipboard');
-	} // break;
+		const list = Array.from(RemoteStyle, ([ , style, ]) => style.url + style.options.query.value.replace(/^\??(?=.)/, '?'));
+		(await writeToClipboard({ 'text/plain': list.join('\n'), }));
+		reportSuccess('Copied', `The list of ${list.length} URLs has been put into your clipboard`);
+	} break;
 	case 'import': {
 		const string = prompt('Please paste your JSON data below', '');
 		if (!string) { return; }
 		const urls = string.trim().split(/\s+/g);
 		const failed = [ ];
 
-		(await Promise.all((await Promise.all(urls.map(_=>mapUrl(_)))).map(url => Remote.add(url).catch(error => {
+		(await Promise.all((await Promise.all(urls.map(_=>mapUrl(_)))).map(url => RemoteStyle.add(url).catch(error => {
 			failed.push(url); console.error('Import error', error);
 		}))));
 
@@ -42,7 +42,7 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 	} break;
 	case 'updateNow': {
 		const updated = [ ], failed = [ ];
-		(await Promise.all(Array.from(Remote,
+		(await Promise.all(Array.from(RemoteStyle,
 			([ , style, ]) => style.update().then(() => updated.push(style))
 			.catch(error => { console.error(error); failed.push(style); })
 		)));

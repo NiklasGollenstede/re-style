@@ -58,13 +58,15 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 
 	globalTokens.length && sections.unshift(new Section([ ], [ ], [ ], [ ], '', globalTokens));
 
-
-	if ((/^\/\*\*? ?==[Uu]ser-?[Ss]tyle==\s/).test(tokens[0])) {
-		meta = parseMetaBlock(tokens[0]);
-	} else {
-		let name; globalTokens.some(token => (/^\/\*/).test(token) && (/^\ ?\*\ ?@name\ (.*)/m).test(token) && (name = (/^\ ?\*\ ?@name\ (.*)/m).exec(token)[1]));
-		name && (meta.name = name);
-	}
+	const metaBlock = globalTokens.find(token =>
+		(/^\/\*\**\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
+	); if (metaBlock) {
+		meta = parseMetaBlock(metaBlock);
+	} else { globalTokens.some(token => {
+		if (!(/^\/\*/).test(token)) { return; }
+		const match = (/^(?:\ ?\*\ ?@(?:name|title)[\ \t]+|\ ?\*\ (?:name|title)[\ \t]*:[\ \t]*)(.*)/mi).exec(token);
+		match && (meta.name = match[1]);
+	}); }
 
 	return new Sheet(meta, sections, namespace);
 }
@@ -73,6 +75,7 @@ class Sheet {
 	static fromCode(code, options) { return parseStyle(code, options); }
 
 	constructor(meta, sections, namespace) {
+		!meta.name && sections.length && (meta.name = (sections[0].domains || sections[0].urlPrefixes || sections[0].urls)[0]);
 		this.meta = meta;
 		this.sections = sections;
 		this.namespace = namespace;
@@ -257,10 +260,10 @@ function parseMetaBlock(block) {
 	const entries = block.slice(0, -2).split(/^\ ?\*\ ?@(?=\w)/gm).slice(1);
 	const meta = { };
 	for (const entry of entries) {
-		const name = (/^\w+/).exec(entry)[0];
+		const name = (/^\w+/).exec(entry)[0].toLowerCase();
 		switch (name) {
-			case 'name': case 'author': case 'license': case 'licence': {
-				meta[name === 'licence' ? 'license' : name] = (/^\ ?.*/).exec(entry.slice(name.length))[0].trim();
+			case 'name': case 'title': case 'author': case 'license': case 'licence': {
+				meta[name === 'title' ? 'name' : name === 'licence' ? 'license' : name] = (/^\ ?.*/).exec(entry.slice(name.length))[0].trim();
 			} break;
 			case 'description': {
 				meta.description = entry.slice(name.length).replace(/^\ ?\*?\ {0,5}/gm, '').trim();

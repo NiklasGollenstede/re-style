@@ -1,5 +1,5 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { Storage, },
+	'node_modules/web-ext-utils/browser/': { manifest, Storage, },
 	'node_modules/web-ext-utils/options/': Options,
 	'node_modules/web-ext-utils/utils/event': { setEvent, setEventGetter, },
 	'node_modules/regexpx/': RegExpX,
@@ -172,6 +172,9 @@ class _Style {
 			},
 			include: {
 				title: 'Add to',
+				description: `This style or parts of it can be applied to user-defined pages.<br>
+				You can edit these includes for this style here or add the current pages doain from the pop-up panel.<br>
+				All text you see in the box below is supplied by the style, not by ${manifest.name}.`,
 				expanded: false, default: true,
 				children: 'dynamic',
 			},
@@ -188,11 +191,11 @@ class _Style {
 			return true;
 		}
 		const hash = (await sha1(code));
-		if (hash === this.hash) { return false; }
-		this.code = code; this.hash = hash;
+		if (hash === this.hash) { return false; } this.hash = hash;
+		this.sheet = typeof code === 'string' ? Sheet.fromCode(code) : Sheet.fromUserstylesOrg(code);
+		this.code = typeof code === 'string' ? code : this.sheet.toString();
 
-		const { sections, } = this.sheet = typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code);
-		const include = [ ]; sections.forEach(section =>
+		const include = [ ]; this.sheet.sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
 				section[type].length && include.push(toRegExp[type](section[type]));
 			} catch(error) { console.error(`Failed to parse ${type} pattern(s) in ${this.url}`, error); } })

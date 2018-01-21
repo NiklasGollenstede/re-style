@@ -22,7 +22,11 @@ const model = {
 			},
 			import: {
 				default: true,
-				input: [ { type: 'control', label: `Import`, suffix: `styles from a whitespace separated list of URLs.`, id: `import-from-urls`, }, ],
+				input: [ { type: 'control', label: `Import`, suffix: `remote styles from a whitespace separated list of URLs.`, }, ],
+			},
+			export: {
+				default: true,
+				input: [ { type: 'control', label: `Export`, suffix: `all remote styles as a list of URLs.`, }, ],
 			},
 		},
 	},
