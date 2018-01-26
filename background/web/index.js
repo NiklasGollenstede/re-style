@@ -7,18 +7,18 @@ let debug; options.debug.whenChange(([ value, ]) => { debug = value; });
 
 class ContentStyle {
 	constructor(url, code) {
-		styles.add(this);
 		this.url = url;
-		this.code = code.toString({ minify: false, important: false, namespace: true, })
-		+ `/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
+		this.code = code.toString({ minify: false, important: true, namespace: true, })
+		+ `\n/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
+		styles.add(this); styles.size === 1 && WebNavigation.onCommitted.addListener(onNavigation);
 		toAdd.add(this.code); refresh();
 	}
 
 	destroy() {
 		if (!styles.has(this)) { return; }
-		styles.delete(this);
+		styles.delete(this); styles.size === 0 && WebNavigation.onCommitted.removeListener(onNavigation);
 		toRemove.add(this.code); refresh();
-		this.code = null;
+		this.code = this.url = null;
 	}
 
 	toJSON() { return this; }
@@ -36,10 +36,10 @@ async function refresh() {
 
 	frames.forEach(({ tabId, frameId, url, }) => {
 		void url;
-		toAdd.forEach(code => Tabs.insertCSS(tabId, { code, frameId, runAt: 'document_start', }).catch(error => {
+		toAdd.forEach(code => Tabs.insertCSS(tabId, { code, frameId, runAt: 'document_start', cssOrigin: 'user', }).catch(error => {
 			debug >= 2 && console.error('Bad frame', tabId, frameId, url, error);
 		}));
-		toRemove.forEach(code => Tabs.removeCSS(tabId, { code, frameId, }).catch(error => {
+		toRemove.forEach(code => Tabs.removeCSS(tabId, { code, frameId, cssOrigin: 'user', }).catch(error => {
 			debug >= 2 && console.error('Bad frame', tabId, frameId, url, error);
 		}));
 	});
@@ -51,16 +51,20 @@ let pending = null; async function getFrames() {
 	(await Promise.all((await Tabs.query({ })).map(async ({ id: tabId, }) => { try {
 		const inTab = (await WebNavigation.getAllFrames({ tabId, }));
 		if (!inTab.length || !isScripable(inTab[0].url)) { return; }
-		inTab.forEach(({ frameId, url, parentFrameId, }) => isScripable(url) && frames.push({ tabId, frameId, parentFrameId, url, }));
+		inTab.forEach(({ frameId, url, parentFrameId, }) =>
+			isScripable(url) && frames.push({ tabId, frameId, parentFrameId, url, })
+		);
 	} catch (error) { console.error(error); } })));
 	global.setTimeout(() => { pending = null; });
 	return frames;
 }
 
 // TODO: only listen while styles.size > 0
-WebNavigation.onCommitted.addListener(({ tabId, frameId, url, }) => {
-	isScripable(url) && styles.forEach(({ code, }) => Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', }));
-});
+function onNavigation({ tabId, frameId, url, }) {
+	isScripable(url) && styles.forEach(({ code, }) =>
+		Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', })
+	);
+}
 
 function isScripable(url) {
 	return !( // not accessible if:
