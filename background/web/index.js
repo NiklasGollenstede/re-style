@@ -62,7 +62,7 @@ let pending = null; async function getFrames() {
 // TODO: only listen while styles.size > 0
 function onNavigation({ tabId, frameId, url, }) {
 	isScripable(url) && styles.forEach(({ code, }) =>
-		Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', })
+		Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', cssOrigin: 'user', })
 	);
 }
 

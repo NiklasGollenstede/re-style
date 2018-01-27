@@ -63,6 +63,7 @@ class Style {
 	}
 
 	async setSheet(code) { return Self.get(this).setSheet(code); }
+	reload() { const self = Self.get(this); !self.disabled && self.enable(); }
 
 	get url() { return Self.get(this).url; }
 	get id() { return Self.get(this).id; }
@@ -300,19 +301,19 @@ class _Style {
 		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 	}
 
-	disable() {
+	disable(supress) {
 		if (this.disabled === true) { return; } this.disabled = true;
 		this.chrome && this.chrome.destroy(); this.chrome = null;
 		this.web && this.web.destroy(); this.web = null;
-		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
+		if (!supress) { this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]); }
 	}
 
 	destroy(final) {
 		if (!this.id) { return; }
-		this.disable();
+		this.disable(true);
 		final && this.options && this.options.resetAll();
 		this.options && this.options.destroy(); this.options = null;
-		this.fireChanged && this.fireChanged(null, { last: true, }); fireChanged([ this.id, ]);
+		this.fireChanged && this.fireChanged([ this.public, ], { last: true, }); fireChanged([ this.id, ]);
 		styles.delete(this.id); this.url = this.id = this.hash = '';
 	}
 }
