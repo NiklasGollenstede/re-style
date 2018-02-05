@@ -3,12 +3,10 @@
 	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/options/editor/about': about,
 	'fetch!package.json:json': packageJson,
+	'fetch!node_modules/web-ext-utils/options/editor/about.css:css': css,
 }) => ({ document, }) => {
 
-const link = global.document.createElement('link');
-link.href = `/node_modules/web-ext-utils/options/editor/about.css`;
-link.rel = 'stylesheet';
-document.body.appendChild(link);
+document.body.appendChild(document.createElement('style')).textContent = css;
 
 about({
 	manifest, package: packageJson,

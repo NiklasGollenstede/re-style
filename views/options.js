@@ -6,7 +6,7 @@
 	'background/remote/': RemoteStyle,
 	'background/remote/map-url': mapUrl,
 	'common/options': options,
-	'fetch!node_modules/web-ext-utils/options/editor/index.css': css,
+	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': css,
 }) => ({ document, prompt, }) => {
 
 document.title = 'Options - '+ manifest.name;

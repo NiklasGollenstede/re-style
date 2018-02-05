@@ -2,7 +2,7 @@
 	'node_modules/web-ext-utils/loader/home': Home,
 	'node_modules/web-ext-utils/browser/': { extension: { getURL, }, },
 	'node_modules/es6lib/dom': { createElement, },
-	'fetch!node_modules/web-ext-utils/options/editor/dark.css': css,
+	'fetch!node_modules/web-ext-utils/options/editor/dark.css:css': css,
 }) => {
 
 return new Home({
@@ -32,7 +32,7 @@ return new Home({
 	style: [ 'vertical', 'firefox', 'dark', ],
 	head: [
 		createElement('base', { target: '_top', }),
-		createElement('style', [ css +`\n/*# sourceURL=/node_modules/web-ext-utils/options/editor/dark.css */`, ]),
+		createElement('style', [ css, ]),
 	],
 });
 

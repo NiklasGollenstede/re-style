@@ -14,10 +14,8 @@
 	'./remote/': RemoteStyle,
 	'./web/': ContentStyle,
 	'./util': { isSubDomain, },
-	Parser,
-	Style,
-	module,
-	require,
+	Parser, Style,
+	module, require,
 }) => {
 let debug; options.debug.whenChange(([ value, ]) => { debug = value; Content.debug = debug >= 2; });
 debug && console.info('Ran updates', updated);

@@ -22,7 +22,7 @@
 		"native-ext": "0.2.2",
 		"regexpx": "0.1.4",
 		"web-ext-build": "0.0.6",
-		"web-ext-utils": "0.0.16"
+		"web-ext-utils": "0.0.17"
 	},
 	"devDependencies": {
 		"babel-eslint": "7.1.1",

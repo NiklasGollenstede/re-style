@@ -38,7 +38,7 @@ const tab = location.activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(location.a
 // restart notice
 if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div id="restart">
 	The UI styles have changed. The browser has to be restarted to apply the changes.<br>
-	You can do that e.g. by prssting <code>Shift</code>+<code>F2</code> and typing <code>restart</code> (then <code>enter</code>).
+	You can do that e.g. by prssting <code>Shift</code>+<code>F2</code> and typing <code>restart</code> (then <code>Enter</code>).
 </div><style> body { margin-top: 105px; } #all { transform: translateY(97px); } </style>`); }
 
 

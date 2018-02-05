@@ -6,7 +6,7 @@
 	'background/local/': Local,
 	'background/remote/': Remote,
 	'background/style': Style,
-	'fetch!./styles.css': css,
+	'fetch!./styles.css:css': css,
 }) => async window => { const { document, } = window;
 
 const Sections = {

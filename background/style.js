@@ -1,5 +1,6 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { manifest, Storage, },
+	'node_modules/web-ext-utils/browser/': { manifest, },
+	'node_modules/web-ext-utils/browser/storage': { sync: storage, },
 	'node_modules/web-ext-utils/options/': Options,
 	'node_modules/web-ext-utils/utils/event': { setEvent, setEventGetter, },
 	'node_modules/regexpx/': RegExpX,
@@ -35,24 +36,6 @@ const toRegExp = {
 	urlPrefixes(raws) { return RegExpXu`^${ raws }.*$`; },
 	domains(raws) { return RegExpXu`^https?://(?:[^/]+\.)?${ raws }(?:$|/.*$)`; },
 	regexps(raws) { return RegExpXu`^${ raws.map(_=>RegExp(_)) }$`; },
-};
-
-const sync = (await Storage.sync.get(null)); Object.keys(sync).forEach(key => !key.startsWith('style.') && delete sync[key]);
-Storage.onChanged.addListener((changes, area) => {
-	if (area !== 'sync') { return; }
-	Object.entries(changes).forEach(([ key, { newValue, }, ]) => {
-		if (!key.startsWith('style.')) { return; }
-		if (newValue === undefined) { delete sync[key]; } else { sync[key] = newValue; }
-		const style = Self.get(styles.get((/^style\.([0-9a-f]+)\./).exec(key)[1]));
-		if (!style) { return; }
-		style.options.onChanged({ [key]: { newValue, }, });
-		style.options.children.include.children.forEach(option => parent.get(option).onChanged({ [key]: { newValue, }, }));
-	});
-});
-const storage = {
-	get()    { return sync; },
-	set()    { return Storage.sync.set(...arguments); },
-	remove() { return Storage.sync.remove(...arguments); },
 };
 
 const Self = new WeakMap, styles = new Map, parent = new WeakMap;
