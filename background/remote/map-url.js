@@ -1,25 +1,30 @@
 (function(global) { 'use strict'; define(require => { // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-async function mapUrl(url, tab) { switch (true) {
+/**
+ * Maps the url of a tab to a url suited for style installation.
+ * Currently supports 'userstyles.org', 'github.com' and generic https?:// urls.
+ * @param  {string}  url  Installation pages url.
+ * @param  {Tab?}    tab  Optional tabs.Tab to give additional context information.
+ * @return {string}       Url that can, more likely, be used for style installation.
+ */
+return async function mapUrl(url, tab) { switch (true) {
 	case (/^https?:\/\/userstyles\.org\/styles\/\d+/).test(url): {
 		const id =  (/\d+/).exec(url)[0];
 		if (!tab) { return `https://userstyles.org/styles/${id}.css`; }
 		let query; try { query = (await
-			(await require.async('node_modules/web-ext-utils/loader/'))
+			(await require.async('node_modules/web-ext-utils/loader/')) // most likely won't need this, so load it lazily
 			.runInFrame(tab.id, 0, readUserstylesOrgOptions)
 		); } catch (error) { console.error(error); }
 		return `https://userstyles.org/styles/${id}.css` + (query ? '?'+ query : '');
 	}
-	case (/^https:\/\/github.com\/[\w-]+\/[\w-]+\/blob\/master\/.*\.css/).test(url): {
+	case (/^https:\/\/github\.com\/[\w-]+\/[\w-]+\/blob\/master\/.*\.css/).test(url): {
 		return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/master/', '/master/');
 	}
 	case !(/^https?:\/\//).test(url): {
 		return '';
 	}
 	default: return url;
-} }
-
-return mapUrl;
+} };
 
 async function readUserstylesOrgOptions() { return (await Promise.all(Array.from(
 	document.querySelectorAll('#advancedsettings_area input, #advancedsettings_area select'), /* global document, */

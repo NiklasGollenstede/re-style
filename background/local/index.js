@@ -11,10 +11,28 @@
 	require,
 }) => {
 
+/**
+ * If `options.local` is enabled, this module recursively reads all files from `options.local.folder`
+ * and creates `LocalStyle`s for all non-hidden `.css` files therein.
+ * Then it monitors the folder for changes and applies them to the existing `Style`s.
+ * If `options.local.chrome` is enabled, it also monitors the `userChrome`/`Content.css` files;
+ * if they are edited though firefox' dev tools, the changes are mapped back to the original source files.
+ */
+
+/**
+ * Represents a style loaded from the local disk.
+ * LocalStyles are loaded anew every time the extension starts and ace not cached.
+ */
 class LocalStyle extends Style {
+	/// doesn't need any methods or be restored from JSON
+
+	/// Retrieves a `Style` by its `.id`, only if it is a `RemoteStyle`.
 	static get(id) { return styles.get(id); }
+	/// Iterator over all `RemoteStyle` instances as [ id, style, ].
 	static [Symbol.iterator]() { return styles[Symbol.iterator](); }
 }
+
+//// start implementation
 
 let native = null/*Port*/; const styles = new Map/*<id, LocalStyle>*/; let exclude = null/*RegExp*/;
 let active = options.local.value; options.local.onChange(async ([ value, ]) => { try { (await (value ? enable() : disable())); } catch (error) { reportError(error); } });
@@ -22,6 +40,7 @@ let unloading = false; global.addEventListener('unload', () => (unloading = true
 
 if (active) { enable(true).catch(reportError); } else { if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } else { global.__startupSyncPoint__ = () => null; } }
 
+// reads the local dir and starts listening for changes of it or the chrome/ dir
 async function enable(init) {
 	if (active && !init) { return; } active = options.local.value = true;
 
@@ -72,50 +91,59 @@ async function enable(init) {
 	native.watchChrome(onChromeChange);
 }
 
+// called when a .css file in the local dir was actually changed
 async function onCange(path, css) { try {
 	css && (css = css.replace(/\r\n?/g, '\n'));
 	if (exclude.test(path)) { return; }
 	const id = (await Style.url2id(path));
 	const style = styles.get(id);
-	if (style) { if (css) {
+	if (style) { if (css) { // update
 		const changed = (await style.setSheet(css));
 		console.info(changed ? `File ${path} was changed on disk, reloaded style "${style.options.name.value}"` : `Already knew changes in ${path}`);
-	} else {
+	} else { // delete
 		console.info(`File ${path} was deleted, removing style "${style.options.name.value}"`);
 		style.destroy(); styles.delete(id);
-	} } else if (css) {
+	} } else if (css) { // create
 		const style = (await new LocalStyle(path, css)); styles.set(id, style);
 		console.info(`File ${path} was created, added style "${style.options.name.value}"`);
-	}
+	} // else deleted non-existing
 } catch (error) { console.error('Error in fs.watch handler', error); } }
 
+// called when `userChrome`/`Content.css` was changed
 async function onChromeChange(path, css) { try {
 	css && (css = css.replace(/\r\n?/g, '\n'));
 	if (!css) { return; } // file deleted
 	console.info(`${path.split(/\\|\//g).pop()} changed, applying changes to local files in ${options.local.children.folder.value} (if any)`);
 	const isChrome = (/[\/\\]userChrome[.]css$/).test(path);
 
+	// for each file segment ...
 	(await Promise.all(Object.entries(ChromeStyle.extractFiles(css)).map(async ([ path, css, ]) => {
 		const id = (await Style.url2id(path));
 		const style = styles.get(id); if (!style) { return; }
 		if (style.chrome[isChrome ? 'chrome' : 'content'] === css) { return; }
+		// the segment of the style actually changed
 
-		const parts = [ style.code, ]; let lastPos = 0;
+		const parts = [ style.code, ];
 		const now = Sheet.fromCode(css.replace(/\/\*rS\*\/!important/g, ''), { onerror: error => { throw error; }, });
 		const old = style.sheet, oldSections = old.sections.slice();
 
-		for (const section of now.sections) {
-			const oldSection = oldSections.find(old =>
-				   section.urls.every(_=>old.urls.includes(_))
-				&& section.urlPrefixes.every(_=>old.urlPrefixes.includes(_))
-				&& section.domains.every(_=>old.domains.includes(_))
-				&& section.regexps.every(_=>old.regexps.includes(_))
+		let lastPos = 0; for (const section of now.sections) { // each `@document` section
+			const oldSection = oldSections.find(old => // find old section with same includes
+				   sameArray(section.urls, old.urls)
+				&& sameArray(section.urlPrefixes, old.urlPrefixes)
+				&& sameArray(section.domains, old.domains)
+				&& sameArray(section.regexps, old.regexps)
 			);
 			if (!oldSection) { console.error(`can't find old section for`, section.code); return; }
-			oldSections.splice(oldSections.indexOf(oldSection), 1);
-			if (sameArray(oldSection.tokens, section.tokens)) { continue; }
+			oldSections.splice(oldSections.indexOf(oldSection), 1); // only use each old section once
+			if (sameArray(oldSection.tokens, section.tokens)) { continue; } // section wasn't changed
 			if (!oldSection.location) { console.warn(`can't apply changes to global CSS`); continue; }
-			parts.splice(parts.length - 1, 1, style.code.slice(lastPos, oldSection.location[0]), section.tokens.join(''), style.code.slice(lastPos = oldSection.location[1]));
+			parts.splice( // this requires the sections to stay in the same order
+				parts.length - 1, 1, // pop last
+				style.code.slice(lastPos, oldSection.location[0]),
+				section.tokens.join(''),
+				style.code.slice(lastPos = oldSection.location[1])
+			);
 		}
 
 		const file = parts.join(''); if (file === style.code) { console.error('no change', path); return; }

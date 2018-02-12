@@ -9,6 +9,94 @@
 	'./parser': Sheet,
 }) => {
 
+/**
+ * Base Style class, extended by `LocalStyle` and `RemoteStyle`.
+ */
+class Style {
+	/**
+	 * Asynchronous base constructor.
+	 * @param  {string}   url   Unique url/path of the style.
+	 * @param  {string?}  code  Optional code to `.setSheet()`.
+	 * @return {Style}          Promise to the new Style instance.
+	 */
+	constructor(url, code) { return new _Style(this, url, code); }
+
+	/**
+	 * Sets the code content of the style sheet. The code will be parsed (see `Sheet`) and
+	 * its `Section`s are applied as a `WebStyle` and/or `ChromeStyle`.
+	 * @param {string|object?}  code  CSS source code. Should contain `@document` sections.
+	 *                                Can also be set as a JSON object returned by userstyles.org.
+	 *                                Setting the Sheet to `null` will remove it from the browser.
+	 * @return {boolean}              Whether the Sheet actually re-applied, which also fires `onCahnged`.
+	 */
+	async setSheet(code) { return Self.get(this).setSheet(code); }
+
+	/**
+	 * Forcefully re-applies the current Sheet,
+	 * e.g. to replace old cached .`chrome` and `.web` properties.
+	 */
+	reload() { const self = Self.get(this); !self.disabled && self.enable(); }
+
+	/// The `url` constructor parameter.
+	get url() { return Self.get(this).url; }
+	/// A fixed-length ID hashed from `.url`.
+	get id() { return Self.get(this).id; }
+	/// String-representation of the current `.sheet`.
+	get code() { return Self.get(this).code; }
+	/// `Sheet` as a result of `.setSheet()`.
+	get sheet() { return Self.get(this).sheet; }
+	/// `ChromeStyle` if `.sheet` has sections that require one.
+	get chrome() { return Self.get(this).chrome; }
+	/// `WebStyle` if `.sheet` has sections that require one.
+	get web() { return Self.get(this).web; }
+
+	/// Gets/sets the disabled state. Disabled Styles don't have .`chrome` and `.web`
+	/// and thus won't affect the browser UI or websites.
+	get disabled() { return Self.get(this).disabled; }
+	set disabled(value) {
+		const self = Self.get(this);
+		if (!!value === self.disabled) { return; }
+		self.disabled ? self.enable() : self.disable();
+	}
+
+	/// Style specific options (TODO: document)
+	get options() { return Self.get(this).options.children; }
+
+	/// Returns `true` iff any of the `.sheet`s sections would match `url`.
+	matches(url) { return Self.get(this).include.some(_=>_.test(url)); }
+
+	/// Returns a JSON object stat can be stored and later passed to `this.constructor.fromJSON`.
+	toJSON() { return Self.get(this).toJSON(); }
+
+	/// Efficiently restores a Style from its JSON representation. Should be called on a deriving class.
+	static fromJSON() { return _Style.fromJSON.apply(this, arguments); }
+
+	/// Retrieves a `Style` instance by its `.id`.
+	static get(id) { return styles.get(id); }
+	/// Iterator over all `Style` instances as [ id, style, ].
+	static [Symbol.iterator]() { return styles[Symbol.iterator](); }
+
+	/// Hashes a url to a `.id`.
+	static async url2id(string) { return sha1(string); }
+
+	/// Permanently removes the style but keeps its user-set options.
+	/// Accessing any methods or getters on `destroy`ed styles will throw.
+	destroy() { Self.get(this).destroy(); }
+} const Self = new WeakMap, styles = new Map;
+
+/**
+ * Static Event fired with (id) whenever a style is
+ * added, enabled, disabled, destroyed or its `.sheet` changed.
+ */
+const fireChanged = setEvent(Style, 'onChanged', { lazy: false, async: true, });
+/**
+ * Instance Event that fires with (this) whenever the Style is
+ * added, enabled, disabled, destroyed or its `.sheet` changed.
+ */
+setEventGetter(Style, 'changed', Self, { async: true, });
+
+//// start implementation
+
 const rXulNs = RegExpX`^(?: # should also remove single backslashes before testing against this
 	  url\("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"\)
 	| url\('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul'\)
@@ -38,70 +126,7 @@ const toRegExp = {
 	regexps(raws) { return RegExpXu`^${ raws.map(_=>RegExp(_)) }$`; },
 };
 
-const Self = new WeakMap, styles = new Map, parent = new WeakMap;
-
-class Style {
-	constructor(url, code) {
-		return new _Style(this, url, code);
-	}
-
-	async setSheet(code) { return Self.get(this).setSheet(code); }
-	reload() { const self = Self.get(this); !self.disabled && self.enable(); }
-
-	get url() { return Self.get(this).url; }
-	get id() { return Self.get(this).id; }
-	get code() { return Self.get(this).code; }
-	get sheet() { return Self.get(this).sheet; }
-	get chrome() { return Self.get(this).chrome; }
-	get web() { return Self.get(this).web; }
-
-	get disabled() { return Self.get(this).disabled; }
-	set disabled(value) {
-		const self = Self.get(this);
-		if (!!value === self.disabled) { return; }
-		self.disabled ? self.enable() : self.disable();
-	}
-
-	get options() { return Self.get(this).options.children; }
-
-	matches(url) {
-		const self = Self.get(this);
-		return self.include.some(_=>_.test(url));
-	}
-
-	toJSON() {
-		const self = Self.get(this);
-		const json = {
-			url: self.url, id: self.id, code: self.code, hash: self.hash, name: self.name,
-			include: self.include.map(_=>_.source), disabled: self.disabled,
-			chrome: self.chrome, web: self.web,
-		};
-		Object.defineProperty(json, 'sheet', { value: self.sheet, });
-		return json;
-	}
-
-	static fromJSON({ url, id, code, hash, name, include, disabled, chrome, web, }) {
-		const _this = Object.create(this.prototype);
-		const self = Object.create(_Style.prototype);
-		Self.set(self.public = _this, self);
-		self.url = url; self.id = id; self.code = code; self.hash = hash; self.name = name; styles.set(self.id, _this);
-		self.include = include.map(_=>RegExp(_)); self.disabled = disabled;
-		self.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
-		self.web = web ? WebStyle.fromJSON(web) : null;
-		self.options = new Options({ model: self.getOptionsModel(), prefix: 'style.'+ self.id, storage, });
-		fireChanged([ ]);
-		return _this;
-	}
-
-	static get(id) { return styles.get(id); }
-	static [Symbol.iterator]() { return styles[Symbol.iterator](); }
-
-	static async url2id(string) { return sha1(string); }
-
-	destroy() { Self.get(this).destroy(); }
-}
-const fireChanged = setEvent(Style, 'onChanged', { lazy: false, async: true, });
-setEventGetter(Style, 'changed', Self, { async: true, });
+const parent = new WeakMap;
 
 class _Style {
 	constructor(self, url, code) { return (async () => {
@@ -174,10 +199,16 @@ class _Style {
 			this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
 			return true;
 		}
-		const hash = (await sha1(code));
-		if (hash === this.hash) { return false; } this.hash = hash;
-		this.sheet = typeof code === 'string' ? Sheet.fromCode(code) : Sheet.fromUserstylesOrg(code);
-		this.code = typeof code === 'string' ? code : this.sheet.toString();
+		if (typeof code === 'string') {
+			this.code = code;
+			const hash = (await sha1(this.code)); if (hash === this.hash) { return false; } this.hash = hash;
+			this.sheet = Sheet.fromCode(code); // lazy
+		} else {
+			const sheet = Sheet.fromUserstylesOrg(code); // must do this first
+			this.code = this.sheet.toString();
+			const hash = (await sha1(this.code)); if (hash === this.hash) { return false; } this.hash = hash;
+			this.sheet = sheet;
+		}
 
 		const include = [ ]; this.sheet.sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
@@ -296,9 +327,35 @@ class _Style {
 		this.disable(true);
 		final && this.options && this.options.resetAll();
 		this.options && this.options.destroy(); this.options = null;
+		Self.delete(this.public);
 		this.fireChanged && this.fireChanged([ this.public, ], { last: true, }); fireChanged([ this.id, ]);
 		styles.delete(this.id); this.url = this.id = this.hash = '';
 	}
+
+
+	toJSON() {
+		const json = {
+			url: this.url, id: this.id, code: this.code, hash: this.hash, name: this.name,
+			include: this.include.map(_=>_.source), disabled: this.disabled,
+			chrome: this.chrome, web: this.web,
+		}; Object.defineProperty(json, 'sheet', { value: this.sheet, });
+		return json;
+	}
+
+	static fromJSON({
+		url, id, code, hash, name, include, disabled, chrome, web,
+	}) { const { prototype, } = this; return (function() {
+		const self = Object.create(prototype);
+		Self.set(this.public = self, this);
+		this.url = url; this.id = id; styles.set(this.id, self);
+		this.code = code; this.hash = hash; this.name = name;
+		this.include = include.map(_=>RegExp(_)); this.disabled = disabled;
+		this.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
+		this.web = web ? WebStyle.fromJSON(web) : null;
+		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
+		fireChanged([ this.id, ]);
+		return self;
+	}).call(Object.create(_Style.prototype)); }
 }
 
 async function sha1(string) {

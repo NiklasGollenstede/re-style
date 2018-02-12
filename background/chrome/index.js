@@ -11,7 +11,10 @@
 	require,
 }) => {
 
-
+/**
+ * Represents (the parts of) a style sheet that need to be written to
+ * `userChrome.css` and `userContent.css`.
+ */
 class ChromeStyle {
 
 	constructor(path, chrome, content) {
@@ -49,17 +52,25 @@ class ChromeStyle {
 	}
 
 } const styles = new Set; let changed = false;
+
+/**
+ * Static Event that fires whenever the chrome/ style files were actually written.
+ * Provides a dingle argument `changed`, that indicates whether a style file is now different than it was at extension startup.
+ */
 const fireWritten = setEvent(ChromeStyle, 'onWritten', { lazy: false, async: true, });
 
-const uuid = rootUrl.slice('moz-extension://'.length, -1);
+//// start implementation
+
 // This is unique for each (firefox) extension installation and makes sure that prefix, infix and suffix are unpredictable for the style authors
 // and thus won't occur in the file on accident (or intentionally) where they don't belong.
+const uuid = rootUrl.slice('moz-extension://'.length, -1);
 const prefix = `\n/* Do not edit this section of this file (outside the Browser Toolbox). It is managed by the ${manifest.name} extension. */ /*START:${uuid}*/\n`;
-const infix  = `\n/*"*//*'*/;};};};};};}@media not all {} /* reset sequence, do not edit this line */ /*NEXT:${uuid}*/`;
 // This terminator sequence closes open strings, comments, blocks and declarations.
 // The media query seems to "reset" the parser (and doesn't do anything itself).
 // At the same time it serves as split point when the changes to the files are applied to the local edit files.
+const infix  = `\n/*"*//*'*/;};};};};};}@media not all {} /* reset sequence, do not edit this line */ /*NEXT:${uuid}*/`;
 const suffix = `\n/*END:${uuid}*/\n`;
+// extracts reStyles section from the files. This allows other content to coexist with reStyles managed code
 const rExtract = RegExpX('n')`
 	(^|\n) .* \/\*START:${uuid}\*\/ [^]* \/\*END:${uuid}\*\/ (\n|$)
 `, rExtractSource = rExtract.source.replace(/\\n/g, String.raw`(?:\r\n?|\n)`);
@@ -67,7 +78,8 @@ function extract(file) {
 	return (rExtract.exec(file) || [ '', ])[0].replace(/^\n?.*\n/, '').replace(/\n.*\n?$/, '');
 }
 
-
+// `load` tries to require the ./native module in node.js, returns `false` if that fails
+// `unload` releases the module after a while to allow node.js to quit
 let native = null; const load = async () => {
 	if (native) { return native; }
 	if (!(await Native.test())) {
@@ -79,7 +91,7 @@ let native = null; const load = async () => {
 	Native.unref(native); native = null;
 }, 60e3);
 
-
+// `writeStyles` actually writes the styles, but not to frequently and only if `options.chrome` enabled
 let current = null, active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; writeStyles(!value); });
 const writeStyles = debounceIdle(async (clear) => { try {
 

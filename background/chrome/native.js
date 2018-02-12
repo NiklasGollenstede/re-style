@@ -1,5 +1,25 @@
 /* eslint-env node */ /* eslint-disable strict, no-console */ 'use strict'; /* global require, module, process, Buffer, */
 
+module.exports = {
+
+	/**
+	 * Reads the entire content of `userChrome.css` and `userContent.css`. from <profileDir>/chrome/.
+	 * Doesn't throw and returns empty strings if reading fails
+	 * @return {object}   Object of { chrome, content, } with both UTF-8 strings with native line endings.
+	 */
+	read,
+
+	/**
+	 * Reads the content of `userChrome.css` and `userContent.css`. from <profileDir>/chrome/.
+	 * @param {object}  files  Object of { chrome, content, } with both UTF-8 strings with only '\n' line endings.
+	 * @param {string}  exp    Optional regular expression to replace only a part if the file content
+	 *                         or append the new content to the end of the file.
+	 */
+	write,
+};
+
+//// start implementation
+
 const FS = require('fs'), { promisify, } = require('util'), { EOL, } = require('os');
 const access = promisify(FS.access), mkdir = promisify(FS.mkdir), readFile = promisify(FS.readFile), writeFile = promisify(FS.writeFile);
 const { profileDir, } = require('browser');
@@ -28,5 +48,3 @@ async function readSafe(type) {
 	try { return (await readFile(profileDir +`/chrome/userC${type.slice(1)}.css`, 'utf-8')); }
 	catch (error) { error && error.code !== 'ENOENT' && console.error(error); return ''; }
 }
-
-module.exports = { read, write, };

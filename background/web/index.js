@@ -5,9 +5,14 @@
 }) => {
 let debug; options.debug.whenChange(([ value, ]) => { debug = value; });
 
+/**
+ * Represents (the parts of) a style sheet that can be attached via `Tabs.insertCSS`.
+ */
 class ContentStyle {
 	constructor(url, code) {
 		this.url = url;
+		// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'`
+		// so, as with `ChromeStyle`s, ''!important' has to be added to every rule
 		this.code = code.toString({ minify: false, important: true, namespace: true, })
 		+ `\n/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
 		styles.add(this); styles.size === 1 && WebNavigation.onCommitted.addListener(onNavigation);
@@ -28,11 +33,13 @@ class ContentStyle {
 	}
 }
 
+//// start implementation
+
 const toAdd = new Set, toRemove = new Set, styles = new Set;
 
 async function refresh() {
-	const frames = (await (pending = getFrames()));
-	if (!(toAdd.size || toRemove.size)) { return; }
+	const frames = (await (pending = getFrames())); // if the tabs are already being queried, this returns that promise
+	if (!(toAdd.size || toRemove.size)) { return; } // and the function will exit here, because the previous call already cleared both sets
 
 	frames.forEach(({ tabId, frameId, url, }) => {
 		void url;
@@ -59,7 +66,7 @@ let pending = null; async function getFrames() {
 	return frames;
 }
 
-// TODO: only listen while styles.size > 0
+// only listens while styles.size > 0
 function onNavigation({ tabId, frameId, url, }) {
 	isScripable(url) && styles.forEach(({ code, }) =>
 		Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', cssOrigin: 'user', })

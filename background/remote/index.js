@@ -1,23 +1,51 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { Storage: { local: Storage, }, },
 	'node_modules/web-ext-utils/utils/': { reportError, },
-	'node_modules/native-ext/': Native,
 	'common/options': options,
 	'../style': Style,
 	require,
 }) => {
 
+/**
+ * Restores all previously added `RemoteStyle`s.
+ */
+
+/**
+ * Represents a style downloaded from the Internet.
+ * Successfully added styles are automatically saved.
+ */
 class RemoteStyle extends Style {
+
+	/**
+	 * Downloads, adds and saves a style from a remote url.
+	 * Uses that url, excluding it's query, as the unique identifier of the style.
+	 * @param  {string}       url  Url to fetch and update the style from. Can include a query part for settings.
+	 * @return {RemoteStyle}       The new Style.
+	 * @throws {Error}             If style fails to download or has a wrong MIME type.
+	 */
 	static async add(url) { return add(url); }
 
+	/**
+	 * Updates a style from it's original url including the query.
+	 */
 	async update() { return update(this); }
+	/**
+	 * Permanently removes the style and deletes all associated information.
+	 */
 	async remove() { return remove(this); }
 
+	/**
+	 * Restores a RemoteStyle from it's JSON representation.
+	 */
 	static fromJSON() { return Style.fromJSON.apply(this, arguments); }
 
+	/// Retrieves a `Style` by its `.id`, only if it is a `RemoteStyle`.
 	static get(id) { return styles.get(id); }
+	/// Iterator over all `RemoteStyle` instances as [ id, style, ].
 	static [Symbol.iterator]() { return styles[Symbol.iterator](); }
 }
+
+//// start implementation
 
 const urlList = options.remote.children.urls.values; const styles = new Map/*<id, RemoteStyle>*/;
 
@@ -41,7 +69,7 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 	if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } // sync with ../local/
 	else { (await new Promise((resolve, reject) => { global.__startupSyncPoint__ = resolve; require.async('../local/').catch(reject); })); }
 
-	// enable all styles at once to allow later optimizations
+	// add all restored styles at once, so that `ChromeStyle` and `WebStyle` don't need to update multiple times
 	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore remote style`, error); } });
 
 	styles.forEach(_=>_.onChanged(onChanged));
