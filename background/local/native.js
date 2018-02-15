@@ -33,17 +33,42 @@ module.exports = {
 	 * @param  {string}  css   UTF-8 string with only '\n' line endings to write.
 	 */
 	async writeStyle(path, css) {
+		if (
+			!(/\.css$/).test(path) || (/[\\\/]\./).test(path)
+			|| !(await get(FS.stat, path, FS.constants.R_OK).catch(_=>null))
+		) { throw new Error(`Can't write to "${path}"`); }
+		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), 'utf-8'));
+	},
+
+	/**
+	 * Creates a new, non-hidden `.css` file.
+	 * @param  {string}  path  Absolute file path.
+	 * @param  {string}  css   UTF-8 string with only '\n' line endings to write.
+	 */
+	async createStyle(path, css) {
+		if (
+			!(/\.css$/).test(path) || (/[\\\/]\./).test(path)
+			|| !(await get(FS.access, path).catch(_=>true))
+		) { throw new Error(`Can't create file "${path}"`); }
+		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), { encoding: 'utf-8', flags: 'wx', }));
+	},
+
+	async openStyle(path) {
 		let stat; try { stat = (await get(FS.stat, path)); } catch (_) { }
 		if (!stat || !(/\.css$/).test(path) || (/[\\\/]\./).test(path)) {
-			throw new Error(`Can only write existing non-hidden .css files`);
+			throw new Error(`Can only open existing non-hidden .css files`);
+		} path = Path.normalize(path);
+		switch (process.platform) {
+			case 'win32':  (await get(execFile, 'explorer.exe', [ path, ])); break;
+			case 'linux':  (await get(execFile, 'xdg-open', [ path, ])); break;
+			case 'darwin': (await get(execFile, 'open', [ path, ])); break;
 		}
-		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), 'utf-8'));
 	},
 };
 
 //// start implementation
 
-const FS = require('fs'); const Path = require('path'), { EOL, } = require('os');
+const FS = require('fs'), Path = require('path'), { EOL, } = require('os'), { execFile, } = require('child_process');
 function get(api, ...args) { return new Promise((resolve, reject) => api(...args, (error, value) => error ? reject(error) : resolve(value))); }
 
 const cb2watcher = new WeakMap;

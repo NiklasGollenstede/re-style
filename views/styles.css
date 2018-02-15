@@ -121,6 +121,19 @@ body {
 	margin: 0 3px 3px 0;
 }
 
+/* "create local copy" button */
+.pref-name-edit>.toggle-target>.values-container,
+.pref-name-edit>.toggle-target>.values-container>.input-row,
+.pref-name-edit>.toggle-target>.values-container>.input-row>.inputs-wrapper,
+.pref-name-edit>.toggle-target>.values-container>.input-row>.inputs-wrapper>.input-wrapper
+{ display: inline; }
+.pref-name-edit>.toggle-target>.values-container>.input-row>.inputs-wrapper>.input-wrapper
+input {
+	border: none; background: none;
+	outline: none; box-shadow: none;
+	height: unset; font-size: unset; padding: 0;
+	cursor: pointer; text-decoration: underline;
+}
 
 /**
  * inputs

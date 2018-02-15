@@ -2,6 +2,132 @@
 	'node_modules/regexpx/': RegExpX,
 }) => {
 
+/**
+ * Parsed CSS Style `Sheet` for analysis and manipulation.
+ * Most noteworthy, it contains an array of `@document` rule `Section`s.
+ * @property  {[Section]}  sections   Array of `Section`s representing all `@document` blocks.
+ *                                    The first `Section` has no include rules and contains all global code.
+ * @property  {namespace}  namespace  The sheets default namespace as it appeared in the code.
+ * @property  {object}     meta       File metadata parsed from the `==UserStyle==` comment block.
+ *                                    Tries to is infer at least the `.meta.name` otherwise if no metadata block is found.
+ */
+class Sheet {
+
+	/**
+	 * Parses a code string into a `Sheet` with `Section`s.
+	 * @param  {string}    code      Style sheet source code string.
+	 * @param  {function}  .onerror  Function called with (error) when a parsing error occurs.
+	 *                               Default behavior is to abort parsing and return with an incomplete list of `.sections`
+	 * @return {Sheet}               The parsed `Sheet`.
+	 */
+	static fromCode(code, options) { return parseStyle(code, options); }
+
+	/**
+	 * Transforms `userstyles.orgs` JSON sheets into a `Sheet`.
+	 * @see  `Section.Section.fromUserstylesOrg`.
+	 * @param  {object}  json  Parsed JSON object returned by `userstyles.orgs` API.
+	 * @return {Sheet}         A `Sheet` with `Sections` complying with this API description.
+	 */
+	static fromUserstylesOrg({ name, sections, namespace = '', }) {
+		return new Sheet({ name, }, sections.map(Section.fromUserstylesOrg), namespace);
+	}
+
+	/// creates a sheet from its components
+	constructor(meta, sections, namespace) {
+		!meta.name && sections.length && (meta.name = (sections[0].domains || sections[0].urlPrefixes || sections[0].urls)[0]);
+		this.meta = meta; this.sections = sections; this.namespace = namespace;
+	}
+
+	/// creates a clone of the `Sheet` but sets a different `.sections` Array.
+	cloneWithSections(sections) { return new Sheet(this.meta, sections, this.namespace); }
+
+	/**
+	 * Casts the `Sheet` (back) into a string. Note that this may not result
+	 * in the exact original code While formatting within blocks can be mostly preserved,
+	 * all global code and comments will be placed at the beginning of the file.
+	 * @see  `Section.toString`, which is called with `options` to stringify each `Section`.
+	 * @param  {boolean}  .namespace  Whether to include the default namespace.
+	 * @param  {boolean}  .minify     Whether to collapse or preserve whitespaces.
+	 * @param  {Object}   .important  See  `Section.toString`.
+	 * @return {string}               Code that, except for `.minify`, `.important` and
+	 *                                any modifications made to the `Sheet` should have
+	 *                                the same effect as the code originally parsed.
+	 */
+	toString({ namespace = true, minify = false, } = { }) {
+		return (
+			namespace && this.namespace ? '@namespace '+ this.namespace +';' : ''
+		) + this.sections.map(
+			_=>_.toString(arguments[0])
+		).join(minify ? '' : '\n\n');
+	}
+
+	toJSON() { return this; }
+
+	static fromJSON({ meta, sections, namespace, }) {
+		return new Sheet(meta, sections, namespace);
+	}
+}
+
+/**
+ * Parsed `@document` block within a `Sheet`. Exported as `Sheet.Section`.
+ * All include rules are set as interpreted strings, e.g.
+ * a literal `@regexp("a\\b\/c\.d")` would result in a `a\b/c.d` entry in `.regexp`.
+ * @property {[string]}   urls         `url()` document include rules.
+ * @property {[string]}   urlPrefixes  `url-prefixe()` document include rules.
+ * @property {[string]}   domains      `domain()` document include rules.
+ * @property {[string]}   regexps      `regexp()` document include rules.
+ * @property {[int,int]?} location     For `Section`s directly parsed by `Section.fromCode` this
+ *                                     is their location within the original source code string.
+ * At least one of the internal fields `.code` or `.tokens` (tokenized code) is always set.
+ */
+class Section {
+
+	/**
+	 * Transforms a `.section` entry of a `userstyles.orgs` JSON sheets into a `Section`.
+	 * @see  `Section.Section.fromUserstylesOrg`.
+	 * @param  {object}    json  `.section` entry of a parsed JSON object returned by `userstyles.orgs` API.
+	 * @return {Section}         A `Section` with `Sections` complying with this API description.
+	 */
+	static fromUserstylesOrg(json) { return Section_fromUserstylesOrg(json); }
+
+	/// Constructs a `Sheet` from its components. Must set either `code` or `tokens`.
+	constructor(urls, urlPrefixes, domains, regexps, code, tokens = null, location = null) {
+		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
+		this.code = code; this.tokens = tokens; this.location = location;
+	}
+
+	cloneWithoutIncludes() { return new Section([ ], [ ], [ ], [ ], this.code, this.tokens, this.location); }
+
+	/// Returns `true` iff the `Section`s code consists of only comments and whitespaces.
+	isEmpty() {
+		!this.tokens && (this.tokens = tokenize(this.code));
+		return !this.tokens.some(_=>!(/^\s*$|^\/\*/).test(_));
+	}
+
+	/**
+	 * Casts the `Section` (back) into a string.
+	 * @param  {boolean}  .minify     Whether to collapse or preserve whitespaces.
+	 * @param  {Object}   .important  If `true`, appends the string '/*rS* /!important' (without the space)
+	 *                                after each declaration that is not already `!important`.
+	 *                                This allows to apply sheets without `!important` to
+	 *                                be applied with `cssOrigin: 'user'` and still have an effect.
+	 *                                The `rS` comment allows to remove the added `!important`s later.
+	 * @return {string}               Code that, except for `.minify`, `.important`  and
+	 *                                any modifications made to the `Sheet` should have
+	 *                                the same effect as the code originally parsed.
+	 */
+	toString() { return Section_toString.apply(this, arguments); }
+
+	toJSON() { return this; }
+
+	static fromJSON({ urls, urlPrefixes, domains, regexps, code, tokens, }) {
+		return new Section(urls, urlPrefixes, domains, regexps, code, tokens);
+	}
+}
+Sheet.Section = Section;
+
+//// start implementation
+
 function parseStyle(css, { onerror = error => console.warn('CSS parsing error', error), } = { }) {
 	const tokens = tokenize(css);
 	let lastPos = 0, lastIndex = 0; const pos = index => {
@@ -9,7 +135,7 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 	};
 
 	let namespace = '', meta = { };
-	const sections = [ ], globalTokens = [ ];
+	const globalTokens = [ ], sections = [ new Section([ ], [ ], [ ], [ ], '', globalTokens), ];
 
 	loop: for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
 		case '@namespace': {
@@ -56,12 +182,10 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 		}
 	} }
 
-	globalTokens.length && sections.unshift(new Section([ ], [ ], [ ], [ ], '', globalTokens));
-
 	const metaBlock = globalTokens.find(token =>
 		(/^\/\*\**\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
 	); if (metaBlock) {
-		meta = parseMetaBlock(metaBlock);
+		meta = parseMetaBlock(metaBlock, onerror);
 	} else { globalTokens.some(token => {
 		if (!(/^\/\*/).test(token)) { return; }
 		const match = (/^(?:\ ?\*\ ?@(?:name|title)[\ \t]+|\ ?\*\ (?:name|title)[\ \t]*:[\ \t]*)(.*)/mi).exec(token);
@@ -71,94 +195,32 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 	return new Sheet(meta, sections, namespace);
 }
 
-class Sheet {
-	static fromCode(code, options) { return parseStyle(code, options); }
+function Section_fromUserstylesOrg({ urls, urlPrefixes, domains, regexps, code, }) {
+	// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
+	// but e.g. to compare them against actual URLs, their escapes need to be evaluated
+	urls = urls.map(evalString); urlPrefixes = urlPrefixes.map(evalString);
+	domains = domains.map(evalString); regexps = regexps.map(evalString);
 
-	constructor(meta, sections, namespace) {
-		!meta.name && sections.length && (meta.name = (sections[0].domains || sections[0].urlPrefixes || sections[0].urls)[0]);
-		this.meta = meta;
-		this.sections = sections;
-		this.namespace = namespace;
-	}
-
-	cloneWithSections(sections) { return new Sheet(this.meta, sections, this.namespace); }
-
-	static fromUserstylesOrg({ sections, name, namespace = '', }) {
-		sections = sections.map(({ urls, urlPrefixes, domains, regexps, code, }) => {
-			// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
-			// but e.g. to compare them against actual URLs, their escapes need to be evaluated
-			urls = urls.map(evalString); urlPrefixes = urlPrefixes.map(evalString);
-			domains = domains.map(evalString); regexps = regexps.map(evalString);
-
-			if (urls.length + urlPrefixes.length + domains.length + regexps.lenght === 0) {
-				return new Section(urls, urlPrefixes, domains, regexps, code);
-			} else {
-				const tokens = tokenize(code);
-				for (let index = 0; index < tokens.length; ++index) {
-					if (tokens[index] !== '@namespace') { continue; }
-					const end = tokens.indexOf(';', index);
-					if (index < 0) { break; }
-					const parts = tokens.slice(index + 1, end).filter(_=>!(/^\s*$|^\/\*/).test(_));
-					if (parts.length === 1) { namespace = parts[0]; }
-				}
-				return new Section(urls, urlPrefixes, domains, regexps, '', tokens);
-			}
-		});
-		return new Sheet({ name, }, sections, namespace);
-	}
-
-	toString({ namespace = true, minify = false, /*important = false,*/ } = { }) {
-		return (
-			namespace && this.namespace ? '@namespace '+ this.namespace +';' : ''
-		) + this.sections.map(
-			_=>_.toString(arguments[0])
-		).join(minify ? '' : '\n\n');
-	}
-
-	toJSON() { return this; }
-
-	static fromJSON({ meta, sections, namespace, }) {
-		return new Sheet(meta, sections, namespace);
-	}
+	return new Section(urls, urlPrefixes, domains, regexps, code);
 }
 
-class Section {
-	constructor(urls, urlPrefixes, domains, regexps, code, tokens = null, location = null) {
-		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
-		this.code = code; this.tokens = tokens; this.location = location;
-	}
+function Section_toString({ minify = false, important = false, } = { }) {
+	let { tokens, code, } = this; // either must be set
+	important && !tokens && (tokens = this.tokens = tokenize(code));
+	minify && tokens && (tokens = minifyTokens(this.tokens.slice()).filter(_=>_));
+	important && (tokens = addImportants(tokens));
+	minify && !tokens && (code = code.replace(/\s+/g, ' '));
+	tokens && (code = tokens.join(''));
 
-	cloneWithoutIncludes() { return new Section([ ], [ ], [ ], [ ], this.code, this.tokens); }
+	if (this.urls.length + this.urlPrefixes.length + this.domains.length + this.regexps.length === 0) { return code; }
 
-	isEmpty() {
-		!this.tokens && (this.tokens = tokenize(this.code));
-		return !this.tokens.some(_=>!(/^\s*$|^\/\*/).test(_));
-	}
-
-	toString({ minify = false, important = false, } = { }) {
-		let { tokens, code, } = this;
-		important && !tokens && (tokens = this.tokens = tokenize(code));
-		minify && tokens && (tokens = minifyTokens(this.tokens.slice()).filter(_=>_));
-		important && (tokens = addImportants(tokens));
-		minify && !tokens && (code = code.replace(/\s+/g, ' '));
-		tokens && (code = tokens.join(''));
-
-		if (this.urls.length + this.urlPrefixes.length + this.domains.length + this.regexps.length === 0) { return code; }
-
-		return '@-moz-document'+ (minify ? ' ' : '\n\t') + [
-			...this.urls.map(raw => `url(${JSON.stringify(raw)})`),
-			...this.urlPrefixes.map(raw => `url-prefix(${JSON.stringify(raw)})`),
-			...this.domains.map(raw => `domain(${JSON.stringify(raw)})`),
-			...this.regexps.map(raw => `regexp(${JSON.stringify(raw)})`),
-		].join(minify ? ',' : ',\n\t')
-		+ (minify ? '' : '\n') +'{'+ code +'}';
-	}
-
-	toJSON() { return this; }
-
-	static fromJSON({ urls, urlPrefixes, domains, regexps, code, tokens, }) {
-		return new Section(urls, urlPrefixes, domains, regexps, code, tokens);
-	}
+	return '@-moz-document'+ (minify ? ' ' : '\n\t') + [
+		...this.urls.map(raw => `url(${JSON.stringify(raw)})`),
+		...this.urlPrefixes.map(raw => `url-prefix(${JSON.stringify(raw)})`),
+		...this.domains.map(raw => `domain(${JSON.stringify(raw)})`),
+		...this.regexps.map(raw => `regexp(${JSON.stringify(raw)})`),
+	].join(minify ? ',' : ',\n\t')
+	+ (minify ? '' : '\n') +'{'+ code +'}';
 }
 
 function tokenize(css) {
@@ -256,10 +318,9 @@ function evalString(string) {
 	return string.replace(/\\+/g, _ => '\\'.repeat(Math.ceil(_.length / 2)));
 }
 
-function parseMetaBlock(block) {
+function parseMetaBlock(block, onerror) {
 	const entries = block.slice(0, -2).split(/^\ ?\*\ ?@(?=\w)/gm).slice(1);
-	const meta = { };
-	for (const entry of entries) {
+	const meta = { }; for (const entry of entries) { try {
 		const name = (/^\w+/).exec(entry)[0].toLowerCase();
 		switch (name) {
 			case 'name': case 'title': case 'author': case 'license': case 'licence': {
@@ -284,11 +345,9 @@ function parseMetaBlock(block) {
 				includes.push(rule);
 			}
 		}
-	}
-	return meta;
+	} catch (error) { onerror(error); } } return meta;
 }
 
-Sheet.Section = Section;
 return Sheet;
 
 }); })(this);

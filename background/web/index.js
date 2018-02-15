@@ -55,7 +55,9 @@ async function refresh() {
 
 let pending = null; async function getFrames() {
 	if (pending) { return pending; } const frames = [ ];
-	(await Promise.all((await Tabs.query({ })).map(async ({ id: tabId, }) => { try {
+	(await Promise.all((await Tabs.query({
+		discarded: false, url: '<all_urls>', // can't inject in other tabs anyway
+	})).map(async ({ id: tabId, }) => { try {
 		const inTab = (await WebNavigation.getAllFrames({ tabId, }));
 		if (!inTab.length || !isScripable(inTab[0].url)) { return; }
 		inTab.forEach(({ frameId, url, parentFrameId, }) =>

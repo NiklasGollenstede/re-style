@@ -24,9 +24,27 @@
  * LocalStyles are loaded anew every time the extension starts and ace not cached.
  */
 class LocalStyle extends Style {
-	/// doesn't need any methods or be restored from JSON
 
-	/// Retrieves a `Style` by its `.id`, only if it is a `RemoteStyle`.
+	/// creates a new `.css` file in the local folder
+	static async createStyle(name, file) {
+		if (!native) { throw new Error(`Can only write files if Development mode is enabled`); }
+		const path = options.local.children.folder.value.replace(/([\\\/])?$/, _=>_ || '/') + name;
+		(await native.createStyle(path, file)); return path;
+	}
+
+	/// opens a `.css` file in the local folder with the systems default editor
+	static async openStyle(name) {
+		if (!native) { throw new Error(`Can only write files if Development mode is enabled`); }
+		const path = options.local.children.folder.value.replace(/([\\\/])?$/, _=>_ || '/') + name;
+		(await native.openStyle(path)); return path;
+	}
+
+	/// opens the `LocalStyle` file with the systems default editor
+	async show() { (await native.openStyle(this.url)); }
+
+	/// doesn't need to be restored from JSON
+
+	/// Retrieves a `Style` by its `.id`, only if it is a `LocalStyle`.
 	static get(id) { return styles.get(id); }
 	/// Iterator over all `RemoteStyle` instances as [ id, style, ].
 	static [Symbol.iterator]() { return styles[Symbol.iterator](); }

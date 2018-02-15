@@ -69,10 +69,21 @@ const model = {
 				description: `To develop chrome styles without restarting the browser after every change, the corresponding sections in the <code>userCrome.css</code>/<code>userContent.css</code> files can be edited through the Style Editor in the <i>Browser Toolbox</i> (<code>Ctrl</code> + <code>Shift</code> + <code>Alt</code> + <code>I</code>) or the page inspector on <code>about:</code>-pages.<br>
 				Firefox applies changes made there after a short delay, and when saving (<code>Ctrl</code>+<code>S</code>), writes the new files to the disc.
 				As an <b>experimental</b> feature, reStyle can detect these on-disc changes and map them back to the original (local) style files.<br>
-				Activate at your own risc and always make backups!`,
+				Activate at your own risk and always make backups!`,
 				default: false,
 				restrict: { type: 'boolean', },
 				input: { type: 'boolean', suffix: `enable`, },
+			},
+			template: {
+				title: 'Style Template',
+				description: `The template below is used when you click the <code>create</code> button in the panel.<br>
+				You can use the placeholders <code>{{title}}</code>, <code>{{url}}</code>, <code>{{origin}}</code> and <code>{{domain}}</code>.`,
+				expanded: false,
+				default: template(),
+				restrict: { type: 'string', },
+				input: { type: 'code', lang: 'css', style: {
+					width: 'calc(100vw - 60px)', height: '350px', display: 'block',
+				}, },
 			},
 		},
 	},
@@ -87,5 +98,35 @@ const model = {
 };
 
 return (await new Options({ model, storage, prefix: 'options', })).children;
+
+function template() { return (
+`/** ==UserStyle==
+ * @name New Style for {{domain}}
+ * @author <<your full name>>
+ * @license UNLICENSED
+ * @description This block descries your new Style.
+ *     The name will be the one displayed in ${manifest.name}s UI,
+ *     author and license (https://spdx.org/licenses/) are useful if you publish your style,
+ *     which you are encouraged to do (userstyles.org and GitHub are good places).
+ *     This block can also contain style setting declarations, for more information on that
+ *     see: TBD.
+ *     You can edit this template in ${manifest.name}s options.
+ */
+
+ /*
+  * To apply your style rules only to some pages or browser UI areas,
+  * list them below and place your style rules between the curly braces.
+  * See: https://developer.mozilla.org/en-US/docs/Web/CSS/@document
+  */
+@-moz-document
+	url("{{url}}"),
+	url-prefix("{{origin}}/"),
+	domain("{{domain}}")
+{
+	:root { /* dummy style to test the @document includes */
+		border: 20px solid pink;
+	}
+}
+`); }
 
 }); })(this);

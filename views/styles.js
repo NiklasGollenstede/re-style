@@ -1,24 +1,25 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
-	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
 	'node_modules/es6lib/dom': { createElement, },
-	'background/local/': Local,
-	'background/remote/': Remote,
+	'background/local/': LocalStyle,
+	'background/remote/': RemoteStyle,
 	'background/style': Style,
+	'common/options': options,
 	'fetch!./styles.css:css': css,
 }) => async window => { const { document, } = window;
 
 const Sections = {
 	remote: {
-		Type: Remote,
+		Type: RemoteStyle,
 		title: 'Remote',
 		empty: `To add styles from the Internet (e.g. from <a href="https://www.userstyles.org" target="_blank">userstyles.org</a> or GitHub),
 		navgate to the styles site, click the ${manifest.name} icon in the Browser UI and click <code>Add Style</code>.<br>
 		You can also just paste an URL of a style in the textbox above that button or use the <code>Import</code> button on the options page.`,
 	},
 	local: {
-		Type: Local,
+		Type: LocalStyle,
 		title: 'Local',
 		empty: `To start adding local styles, follow the <a href="#setup">setup</a> and enable <a href="#options#.local">Development Mode</a>.`,
 		after: `To disable local styles permanently, add their names to the <a href="#options#.local.exclude">exclude list</a>.`,
@@ -48,7 +49,7 @@ Style.onChanged(id => {
 	if (!style) { return void (element && element.remove()); }
 	// console.log('onChanged', id, style, element);
 	if (!element) {
-		const list = document.querySelector('#'+ (style instanceof Remote ? 'remote' : 'local') +'>div');
+		const list = document.querySelector('#'+ (style instanceof RemoteStyle ? 'remote' : 'local') +'>div');
 		list.insertBefore(createRow(style), Array.from(list.children).find(row => row.dataset.url > style.url));
 	} else {
 		element.classList[style.disabled ? 'add' : 'remove']('disabled');
@@ -84,6 +85,13 @@ async function onCommand(style, _, action) { try { switch (action) {
 		style.options.edit.children.code.reset();
 	} break;
 	case 'unedit':   style.options.edit.children.code.reset(); break;
+	case 'copy': {
+		const name = style.options.name.value.toLowerCase().replace(/[ .]/g, '-').replace(/[^\w-]/g, '') +'.css';
+		const path = (await LocalStyle.createStyle(name, style.code));
+		style.disabled = true;
+		reportSuccess(`Created local Style at`, path);
+		LocalStyle.openStyle(name).catch(e => console.error(e));
+	} break;
 } } catch (error) { reportError(error); } }
 
 }); })(this);

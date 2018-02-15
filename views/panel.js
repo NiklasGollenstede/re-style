@@ -5,9 +5,11 @@
 	'node_modules/es6lib/dom': { createElement, },
 	'background/style': Style,
 	'background/chrome/': ChromeSytle,
+	'background/local/': LocalStyle,
 	'background/remote/': RemoteSytle,
 	'background/remote/map-url': mapUrl,
 	'background/util': { isSubDomain, },
+	'common/options': options,
 }) => async (window, location) => {
 const { document, } = window;
 
@@ -21,8 +23,10 @@ document.body.innerHTML = `
 		#all { position: absolute; z-index: 1; top: 11px; right: 9px; }
 		h3 { margin: 0; cursor: default; } #styles { margin-bottom: 10px; max-height: 250px; overflow-y: auto; }
 		#styles:empty::after { content: '<none>'; opacity: .5; }
+		#styles label + b { cursor: pointer; }
 		.includes { margin-left: 30px; } .includes input { margin-left: 6px; }
 		textarea { width: 100%; resize: vertical; max-height: 8.2em; min-height: 3.5em; overflow-y: scroll; word-break: break-all; }
+		#create { float: right; }
 	</style>
 	<button id="all">All Styles</button>
 	<h3>Active styles</h3>
@@ -30,9 +34,10 @@ document.body.innerHTML = `
 	<select id="addTo"><option></option></select>
 	<h3>Install style</h3>
 	<textarea id="url" type="text" placeholder="URL to .css file"></textarea><br>
-	<button id="add">Add style</button>
+	<button id="add">Add style</button><button id="create">Create new style</button>
 `;
 const tab = location.activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(location.activeTab)) : (await Tabs.query({ currentWindow: true, active: true, }))[0];
+const url = new global.URL(tab.url);
 
 
 // restart notice
@@ -58,10 +63,7 @@ const add = document.querySelector('#add');
 add.addEventListener('click', event => {
 	if (event.button) { return; }
 	const url = input.value.trim(); add.disabled = true;
-	RemoteSytle.add(url).then(style => {
-		if (!style.name || (/^\d+$/).test(style)) {
-			style.options.name.value = tab.title.split(/-|–|—|\||::|·/)[0].trim(); // TODO: should set the internal name field instead
-		}
+	RemoteSytle.add(url).then(() => {
 		reportSuccess(`Style added`, `from "${ url }"`);
 		input.value = ''; add.disabled = false;
 	}, error => {
@@ -71,8 +73,35 @@ add.addEventListener('click', event => {
 });
 
 
+/// create style button
+const create = document.querySelector('#create');
+create.addEventListener('click', async event => { try {
+	if (!options.local.value) { return void reportError(
+		`Development Mode disabled`,
+		`To create and edit Styles, Development mode has to be set up and enabled on the options page`,
+	); }
+	const props = {
+		title: tab.title,
+		url: url.href,
+		origin: url.origin,
+		domain: url.hostname,
+	};
+	const file = options.local.children.template.value
+	.replace(/{{(\w+)}}/g, (s, key) => props[key] || s);
+	let path, name = url.hostname.replace(/^www\./, '').replace(/\./g, '-') +'.css';
+	try {
+		path = (await LocalStyle.createStyle(name, file));
+	} catch (_) {
+		name = name.slice(0, -4) +'-'+ Math.random().toString(16).slice(2) +'.css';
+		path = (await LocalStyle.createStyle(name, file));
+	}
+	reportSuccess(`Created new Style at`, path);
+	LocalStyle.openStyle(name).catch(e => console.error(e));
+} catch (error) { reportError(error); } });
+
+
 /// active styles list
-const list = document.querySelector('#styles'), url = new global.URL(tab.url);
+const list = document.querySelector('#styles');
 const styles = Array.from(Style, _=>_[1]).filter(style => (
 	style.matches(url.href) || style.options.include.children.some(
 		_=>_.values.current.some(domain => isSubDomain(domain, url.hostname))
@@ -87,8 +116,10 @@ styles.forEach(appendStyle); function appendStyle(style) {
 				onchange: _=> (style.disabled = !_.target.checked),
 			}),
 			style.options.name.value +'',
-			// createElement('a', { target: '_blank', href: '#styles#'+ style.id, }, [ '+', ]),
 		]),
+		(style instanceof LocalStyle) && createElement('b', {
+			onclick() { style.show().catch(reportError); },
+		}, [ ' 🖉 ', ]),
 		createElement('div', { className: 'includes', }, style.options.include.children.map(include => {
 			const matching = include.values.current.filter(domain => isSubDomain(domain, url.hostname));
 			return !matching.length ? null

@@ -11,6 +11,9 @@
 
 document.title = 'Options - '+ manifest.name;
 document.head.appendChild(createElement('style', [ css, ]));
+document.head.appendChild(createElement('style', [ `textarea {
+	width: 100%; height: 100%; max-width: 100%; resize: vertical; -moz-tab-size: 4;
+}`, ]));
 
 new Editor({
 	options, prefix: '', onCommand,

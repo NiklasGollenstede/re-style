@@ -12,7 +12,12 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 	);
 
 	!options.viewRoot && (options.viewRoot = options.chrome ? 'reStyle.html' : 'reStyle');
+
 	manifestJson.options_ui.open_in_tab = true;
+
+	manifestJson.browser_action.default_icon = manifestJson.icons;
+
+	manifestJson.applications.gecko.strict_min_version = '58.0';
 
 	files.node_modules = [
 		'es6lib/dom.js',

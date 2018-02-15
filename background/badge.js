@@ -17,7 +17,6 @@
 //// start implementation
 
 // browser_action (can not be set in manifest due to fennec incompatibility)
-browserAction.setIcon({ path: '/icon.svg', }); // TODO: this should be long fixed by now (2018-02), besides, this add-on doesn't make much sense on fennec anyways
 browserAction.setPopup({ popup: getUrl({ name: 'panel', }).slice(rootUrl.length - 1).replace('#', '?w=350&h=250#'), });
 fennec && browserAction.onClicked.addListener(() => openView('panel'));
 

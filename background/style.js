@@ -79,9 +79,9 @@ class Style {
 	/// Hashes a url to a `.id`.
 	static async url2id(string) { return sha1(string); }
 
-	/// Permanently removes the style but keeps its user-set options.
+	/// Permanently removes the style but keeps its user-set options unless final is `true`.
 	/// Accessing any methods or getters on `destroy`ed styles will throw.
-	destroy() { Self.get(this).destroy(); }
+	destroy(final) { Self.get(this).destroy(final); }
 } const Self = new WeakMap, styles = new Map;
 
 /**
@@ -90,7 +90,7 @@ class Style {
  */
 const fireChanged = setEvent(Style, 'onChanged', { lazy: false, async: true, });
 /**
- * Instance Event that fires with (this) whenever the Style is
+ * Instance Event that fires with (this, id) whenever the Style is
  * added, enabled, disabled, destroyed or its `.sheet` changed.
  */
 setEventGetter(Style, 'changed', Self, { async: true, });
@@ -137,7 +137,8 @@ class _Style {
 		this.disabled = false;
 
 		this.name = url.split(/[\/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
-		this.url = url; this.id = (await Style.url2id(url)); styles.set(this.id, self);
+		this.url = url; this.id = (await Style.url2id(url));
+		if (styles.has(this.id)) { throw new Error(`Duplicate Style id`); } styles.set(this.id, self);
 		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
 
 		code && (await this.setSheet(code));
@@ -172,11 +173,15 @@ class _Style {
 			edit: {
 				title: 'Edit',
 				description: `Please note that changes made here are not permanent and will be overwritten on the next update of this style.
-				To customize a style permanently, create a local copy of it.`,
+				To customize a style permanently, `,
 				expanded: false, default: true,
+				input: [ { type: 'control', id: 'copy', label: 'create a local copy', suffix: ` of it.`, }, ],
 				children: {
 					code: { default: code, input: { type: 'code', lang: 'css', }, },
-					apply: { default: true, input: [ { type: 'control', id: 'apply', label: 'Apply', }, { type: 'control', id: 'unedit', label: 'Reset', }, ], },
+					apply: { default: true, input: [
+						{ type: 'control', id: 'apply', label: 'Apply', },
+						{ type: 'control', id: 'unedit', label: 'Reset', },
+					], },
 				},
 			},
 			include: {
@@ -196,7 +201,7 @@ class _Style {
 			this.chrome && this.chrome.destroy(); this.chrome = null;
 			this.web && this.web.destroy(); this.web = null;
 			this.code = this.hash = ''; this.include.splice(0, Infinity);
-			this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
+			this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
 			return true;
 		}
 		if (typeof code === 'string') {
@@ -205,7 +210,7 @@ class _Style {
 			this.sheet = Sheet.fromCode(code); // lazy
 		} else {
 			const sheet = Sheet.fromUserstylesOrg(code); // must do this first
-			this.code = this.sheet.toString();
+			this.code = sheet.toString();
 			const hash = (await sha1(this.code)); if (hash === this.hash) { return false; } this.hash = hash;
 			this.sheet = sheet;
 		}
@@ -218,7 +223,7 @@ class _Style {
 		this.include.splice(0, Infinity, ...include);
 
 		if (this.disabled) {
-			this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
+			this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
 		} else {
 			this.enable(); // also fires changed
 		}
@@ -312,14 +317,14 @@ class _Style {
 			this.options.children.name.value = ''; this.options.children.name.reset();
 		}
 
-		this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]);
+		this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
 	}
 
 	disable(supress) {
 		if (this.disabled === true) { return; } this.disabled = true;
 		this.chrome && this.chrome.destroy(); this.chrome = null;
 		this.web && this.web.destroy(); this.web = null;
-		if (!supress) { this.fireChanged && this.fireChanged([ this.public, ]); fireChanged([ this.id, ]); }
+		if (!supress) { this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]); }
 	}
 
 	destroy(final) {
@@ -328,7 +333,7 @@ class _Style {
 		final && this.options && this.options.resetAll();
 		this.options && this.options.destroy(); this.options = null;
 		Self.delete(this.public);
-		this.fireChanged && this.fireChanged([ this.public, ], { last: true, }); fireChanged([ this.id, ]);
+		this.fireChanged && this.fireChanged([ this.public, this.id, ], { last: true, }); fireChanged([ this.id, ]);
 		styles.delete(this.id); this.url = this.id = this.hash = '';
 	}
 
@@ -342,12 +347,10 @@ class _Style {
 		return json;
 	}
 
-	static fromJSON({
-		url, id, code, hash, name, include, disabled, chrome, web,
-	}) { const { prototype, } = this; return (function() {
-		const self = Object.create(prototype);
+	static fromJSON({ url, id, code, hash, name, include, disabled, chrome, web, }) { return (function(self) {
 		Self.set(this.public = self, this);
-		this.url = url; this.id = id; styles.set(this.id, self);
+		this.url = url; this.id = id;
+		if (styles.has(this.id)) { throw new Error(`Duplicate Style id`); } styles.set(this.id, self);
 		this.code = code; this.hash = hash; this.name = name;
 		this.include = include.map(_=>RegExp(_)); this.disabled = disabled;
 		this.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
@@ -355,7 +358,7 @@ class _Style {
 		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
 		fireChanged([ this.id, ]);
 		return self;
-	}).call(Object.create(_Style.prototype)); }
+	}).call(Object.create(_Style.prototype), Object.create(this.prototype)); }
 }
 
 async function sha1(string) {
