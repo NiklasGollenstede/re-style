@@ -29,6 +29,22 @@ const model = {
 				default: true,
 				input: [ { type: 'control', label: `Export`, suffix: `all remote styles as a list of URLs.`, }, ],
 			},
+			autoUpdate: {
+				default: true,
+				input: { type: 'boolean', suffix: `automatically update all remote styles older than`, },
+				children: {
+					age: {
+						default: 24,
+						restrict: { type: 'number', from: 0, to: 168, },
+						input: { type: 'number', suffix: `hours, `, },
+					},
+					delay: {
+						default: 5,
+						restrict: { type: 'number', from: 0, to: 120, },
+						input: { type: 'number', suffix: `minutes after <abbr title="browser/extension start or enabling this option">startup</abbr>.`, },
+					},
+				},
+			},
 		},
 	},
 	chrome: {

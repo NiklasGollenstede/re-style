@@ -26,7 +26,7 @@ class ContentStyle {
 		this.code = this.url = null;
 	}
 
-	toJSON() { return this; }
+	toJSON() { return { url: this.url, code: this.code, }; }
 
 	static fromJSON({ url, code, }) {
 		return new ContentStyle(url, code);

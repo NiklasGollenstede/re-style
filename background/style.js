@@ -131,10 +131,10 @@ const parent = new WeakMap;
 class _Style {
 	constructor(self, url, code) { return (async () => {
 		Self.set(this.public = self, this);
-		this.url = this.id = this.code = this.hash = this.name = '';
+		this.url = this.id = this.code = this.name = '';
 		this.options = null; this.include = [ ];
-		this.sheet = this.chrome = this.web = null;
-		this.disabled = false;
+		this.sheet = null; this.disabled = false;
+		this.chrome = this.web = null;
 
 		this.name = url.split(/[\/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
 		this.url = url; this.id = (await Style.url2id(url));
@@ -200,18 +200,16 @@ class _Style {
 			if (!this.code) { return false; }
 			this.chrome && this.chrome.destroy(); this.chrome = null;
 			this.web && this.web.destroy(); this.web = null;
-			this.code = this.hash = ''; this.include.splice(0, Infinity);
+			this.code = ''; this.include.splice(0, Infinity);
 			this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
 			return true;
 		}
 		if (typeof code === 'string') {
-			this.code = code;
-			const hash = (await sha1(this.code)); if (hash === this.hash) { return false; } this.hash = hash;
+			if (code === this.code) { return false; } this.code = code;
 			this.sheet = Sheet.fromCode(code); // lazy
 		} else {
-			const sheet = Sheet.fromUserstylesOrg(code); // must do this first
-			this.code = sheet.toString();
-			const hash = (await sha1(this.code)); if (hash === this.hash) { return false; } this.hash = hash;
+			const sheet = Sheet.fromUserstylesOrg(code); code = sheet.toString();
+			if (code === this.code) { return false; } this.code = code;
 			this.sheet = sheet;
 		}
 
@@ -334,28 +332,28 @@ class _Style {
 		this.options && this.options.destroy(); this.options = null;
 		Self.delete(this.public);
 		this.fireChanged && this.fireChanged([ this.public, this.id, ], { last: true, }); fireChanged([ this.id, ]);
-		styles.delete(this.id); this.url = this.id = this.hash = '';
+		styles.delete(this.id); this.url = this.id = '';
 	}
 
 
 	toJSON() {
 		const json = {
-			url: this.url, id: this.id, code: this.code, hash: this.hash, name: this.name,
+			url: this.url, id: this.id, code: this.code, name: this.name,
 			include: this.include.map(_=>_.source), disabled: this.disabled,
-			chrome: this.chrome, web: this.web,
+			chrome: this.chrome && this.chrome.toJSON(), web: this.web && this.web.toJSON(),
 		}; Object.defineProperty(json, 'sheet', { value: this.sheet, });
 		return json;
 	}
 
-	static fromJSON({ url, id, code, hash, name, include, disabled, chrome, web, }) { return (function(self) {
+	static fromJSON({ url, id, code, name, include, disabled, chrome, web, }) { return (function(self) {
 		Self.set(this.public = self, this);
-		this.url = url; this.id = id;
+		this.url = url; this.id = id; this.code = code; this.name = name;
 		if (styles.has(this.id)) { throw new Error(`Duplicate Style id`); } styles.set(this.id, self);
-		this.code = code; this.hash = hash; this.name = name;
-		this.include = include.map(_=>RegExp(_)); this.disabled = disabled;
+		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
+		this.include = include.map(_=>RegExp(_));
+		this.sheet = null; this.disabled = disabled;
 		this.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
 		this.web = web ? WebStyle.fromJSON(web) : null;
-		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
 		fireChanged([ this.id, ]);
 		return self;
 	}).call(Object.create(_Style.prototype), Object.create(this.prototype)); }

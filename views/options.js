@@ -11,9 +11,16 @@
 
 document.title = 'Options - '+ manifest.name;
 document.head.appendChild(createElement('style', [ css, ]));
-document.head.appendChild(createElement('style', [ `textarea {
+document.head.appendChild(createElement('style', [ String.raw`
+textarea {
 	width: 100%; height: 100%; max-width: 100%; resize: vertical; -moz-tab-size: 4;
-}`, ]));
+}
+.pref-name-autoUpdate *:not(input):not(.checkbox-wrapper):not(label):not(.value-suffix) {
+	display: inline; border: none; padding: 0; margin: 0;
+}
+.pref-name-autoUpdate input { max-width: 4em; }
+#\.remote>.reset-values { display: none; }
+`, ]));
 
 new Editor({
 	options, prefix: '', onCommand,

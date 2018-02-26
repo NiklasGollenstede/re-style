@@ -36,7 +36,7 @@ class ChromeStyle {
 		writeStyles();
 	}
 
-	toJSON() { return this; }
+	toJSON() { return { path: this.path, chrome: this.chrome, content: this.content, }; }
 
 	static fromJSON({ path, chrome, content, }) {
 		// writeStyles(); // this is only used to load styles after a restart. This style should not have changed since it was last written.

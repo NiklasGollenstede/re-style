@@ -4,10 +4,11 @@
 	'common/options': options,
 	'../style': Style,
 	require,
-}) => {
+}) => { /* global setTimeout, clearTimeout, */
 
 /**
- * Restores all previously added `RemoteStyle`s.
+ * Restores all previously added `RemoteStyle`s
+ * and handles the auto-update (if enabled).
  */
 
 /**
@@ -32,6 +33,8 @@ class RemoteStyle extends Style {
 	 */
 	async update() { return update(this); }
 
+	get updated() { return Self.get(this).updated; }
+
 	/**
 	 * Permanently removes the style and deletes all associated information.
 	 */
@@ -51,6 +54,7 @@ class RemoteStyle extends Style {
 
 //// start implementation
 
+// create, update, destroy handlers
 const Self = new WeakMap;
 function Style_constructor(json) {
 	Self.set(this, { updated: json && json.updated || 0, });
@@ -80,9 +84,7 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 		} else {
 			console.warn('cache missing for style', id, url);
 			const style = (await new RemoteStyle(url, ''));
-			style.disabled = true;
-			(await update(style));
-			actions.push(() => (style.disabled = false));
+			actions.push((await prepareUpdate(style))); // TODO: test
 		}
 	} catch (error) { reportError(`Failed to restore remote style`, url, error); } })));
 
@@ -114,23 +116,27 @@ async function add(/*url*/) {
 }
 
 async function update(style, query) {
+	(await (await prepareUpdate(style, query))());
+}
+async function prepareUpdate(style, query) {
 	query = query || style.options.query.value;
 
 	const reply = (await global.fetch(style.url + (query ? query.replace(/^\??/, '?') : '')));
 	const type = reply.headers.get('content-type'), data = (await reply.text());
 
-	if ((/^application\/json(?:;|$)/).test(type)) {
-		const json = JSON.parse(data.replace(/\\r(?:\\n)?/g, '\\n'));
+	let code; if ((/^application\/json(?:;|$)/).test(type)) {
+		code = JSON.parse(data.replace(/\\r(?:\\n)?/g, '\\n'));
 		// TODO: should do some basic data validation
-		(await style.setSheet(json));
 	} else if ((/^text\/(?:css|plain)(?:;|$)/).test(type)) { // also accepts plain text as css
-		const css = data.replace(/\r\n?/g, '\n');
-		(await style.setSheet(css));
+		code = data.replace(/\r\n?/g, '\n');
 	} else {
 		throw new TypeError(`Unexpected MIME-Type ${ type } for style ${ style.name }`);
 	}
-	Self.get(style).updated = Date.now();
-	Storage.set('remote.cache.'+ style.id, style.toJSON()); // onChanged will only be called if `style.code` actually changed
+	return async () => {
+		(await style.setSheet(code));
+		Self.get(style).updated = Date.now();
+		Storage.set('remote.cache.'+ style.id, style.toJSON()); // onChanged will only be called if `style.code` actually changed
+	};
 }
 
 let running = Promise.resolve(); // like a mutex for mutation operations on the urlList
@@ -141,6 +147,19 @@ const queueUrlOp = op => new Promise((resolve, reject) => (running = running.the
 	(await urlList.replace(urls));
 	resolve();
 } catch (error) { reject(error); } })));
+
+// auto update
+let updateTimer; options.remote.children.autoUpdate.when({ true() { updateTimer = setTimeout(async () => {
+	const before = Date.now() - options.remote.children.autoUpdate.children.age.value * 3600e3;
+	(await Promise.all((await Promise.all(
+		[ ...styles.values(), ]
+		.filter(style => style.updated < before)
+		.map(style => prepareUpdate(style).catch(reportError))
+	)).map(apply => apply && apply().catch(reportError))));
+	options.debug.value && console.info('remote styles updated');
+}, (
+	options.remote.children.autoUpdate.children.delay.value * 60e3 * (Math.random() + .5)
+)); }, false: () => clearTimeout(updateTimer), });
 
 return RemoteStyle;
 
