@@ -33,9 +33,9 @@ module.exports = {
 	 * @param  {string}  css   UTF-8 string with only '\n' line endings to write.
 	 */
 	async writeStyle(path, css) {
-		if (
-			!(/\.css$/).test(path) || (/[\\\/]\./).test(path)
-			|| !(await get(FS.stat, path, FS.constants.R_OK).catch(_=>null))
+		path = normalize(path); if (
+			!(/\.css$/).test(path) || (/\/\./).test(path)
+			|| !(await get(FS.stat, path, FS.constants.W_OK).catch(_=>null)) // writable
 		) { throw new Error(`Can't write to "${path}"`); }
 		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), 'utf-8'));
 	},
@@ -46,20 +46,24 @@ module.exports = {
 	 * @param  {string}  css   UTF-8 string with only '\n' line endings to write.
 	 */
 	async createStyle(path, css) {
-		if (
-			!(/\.css$/).test(path) || (/[\\\/]\./).test(path)
-			|| !(await get(FS.access, path).catch(_=>true))
+		path = normalize(path); if (
+			!(/\.css$/).test(path) || (/\/\./).test(path)
+			|| !(await get(FS.access, path).catch(_=>true)) // exists
 		) { throw new Error(`Can't create file "${path}"`); }
 		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), { encoding: 'utf-8', flags: 'wx', }));
 	},
 
+	/**
+	 * Opens an existing, non-hidden `.css` file with the systems default program.
+	 * @param  {string}  path  Absolute file path.
+	 */
 	async openStyle(path) {
-		let stat; try { stat = (await get(FS.stat, path)); } catch (_) { }
-		if (!stat || !(/\.css$/).test(path) || (/[\\\/]\./).test(path)) {
-			throw new Error(`Can only open existing non-hidden .css files`);
-		} path = Path.normalize(path);
+		path = normalize(path); if (
+			!(/\.css$/).test(path) || (/\/\./).test(path)
+			|| (await get(FS.access, path).catch(_=>true)) // !exists
+		) { throw new Error(`Can only open existing non-hidden .css files`); }
 		switch (process.platform) {
-			case 'win32':  (await get(execFile, 'explorer.exe', [ path, ])); break;
+			case 'win32':  (await get(execFile, 'explorer.exe', [ path, ])).catch(() => null); /* throws 'command failed' even if it worked */ break;
 			case 'linux':  (await get(execFile, 'xdg-open', [ path, ])); break;
 			case 'darwin': (await get(execFile, 'open', [ path, ])); break;
 		}
@@ -68,20 +72,19 @@ module.exports = {
 
 //// start implementation
 
-const FS = require('fs'), Path = require('path'), { EOL, } = require('os'), { execFile, } = require('child_process');
+const FS = require('fs'), Path = require('path').posix, { EOL, } = require('os'), { execFile, } = require('child_process');
 function get(api, ...args) { return new Promise((resolve, reject) => api(...args, (error, value) => error ? reject(error) : resolve(value))); }
 
 const cb2watcher = new WeakMap;
 
 async function readAndWatch(include, dir, onChange) {
-	dir = dir.replace(/\\/g, '/').replace(/^~\//, () => require('os').homedir() +'/');
-	const data = { }, mtime = { };
+	dir = normalize(dir); const data = { }, mtime = { };
 	try { (await get(FS.access, dir)); } catch (error) { return null; }
 	(await (async function read(dir) {
 		for (const name of (await get(FS.readdir, dir))) {
 			// console.log('check', dir, name);
 			if (name.startsWith('.')) { continue; }
-			const path = Path.posix.join(dir, name);
+			const path = Path.join(dir, name);
 			const stat = (await get(FS.stat, path));
 			if (stat.isDirectory()) {
 				(await read(path));
@@ -97,7 +100,7 @@ async function readAndWatch(include, dir, onChange) {
 	release(onChange);
 	const watcher = FS.watch(dir, { persistent: false, recursive: true, }, async (type, name) => {
 		name = name.replace(/\\/g, '/');
-		const path = Path.posix.join(dir, name);
+		const path = Path.join(dir, name);
 		if (!name || (/^\.|\/\./).test(name) || !include.test(path)) { return; }
 		let stat; try { stat = (await get(FS.stat, path)); } catch (_) { }
 		if (!stat) { return void onChange(path, null); } // deleted
@@ -114,4 +117,8 @@ function release(onChange) {
 	const watcher = cb2watcher.get(onChange); cb2watcher.delete(onChange);
 	watcher && console.log('release');
 	watcher && watcher.close();
+}
+
+function normalize(path) {
+	return Path.normalize(path.replace(/\\/g, '/').replace(/^~\//, () => require('os').homedir() +'/'));
 }

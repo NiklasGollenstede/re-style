@@ -188,7 +188,7 @@ class _Style {
 				title: 'Add to',
 				description: `This style or parts of it can be applied to user-defined pages.<br>
 				You can edit these includes for this style here or add the current pages doain from the pop-up panel.<br>
-				All text you see in the box below is supplied by the style, not by ${manifest.name}.`,
+				All text you see in the box below is supplied by the style author, not by the ${manifest.name} extension.`,
 				expanded: false, default: true,
 				children: 'dynamic',
 			},

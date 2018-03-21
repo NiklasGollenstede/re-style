@@ -20,7 +20,7 @@ class Sheet {
 	 *                               Default behavior is to abort parsing and return with an incomplete list of `.sections`
 	 * @return {Sheet}               The parsed `Sheet`.
 	 */
-	static fromCode(code, options) { return parseStyle(code, options); }
+	static fromCode(code, options) { return Sheet_fromCode(code, options); }
 
 	/**
 	 * Transforms `userstyles.orgs` JSON sheets into a `Sheet`.
@@ -61,7 +61,7 @@ class Sheet {
 		).join(minify ? '' : '\n\n');
 	}
 
-	toJSON() { return this; }
+	toJSON() { return Object.assign({ }, this); }
 
 	static fromJSON({ meta, sections, namespace, }) {
 		return new Sheet(meta, sections, namespace);
@@ -118,7 +118,7 @@ class Section {
 	 */
 	toString() { return Section_toString.apply(this, arguments); }
 
-	toJSON() { return this; }
+	toJSON() { return Object.assign({ }, this); }
 
 	static fromJSON({ urls, urlPrefixes, domains, regexps, code, tokens, }) {
 		return new Section(urls, urlPrefixes, domains, regexps, code, tokens);
@@ -128,13 +128,14 @@ Sheet.Section = Section;
 
 //// start implementation
 
-function parseStyle(css, { onerror = error => console.warn('CSS parsing error', error), } = { }) {
-	const tokens = tokenize(css);
-	let lastPos = 0, lastIndex = 0; const pos = index => {
-		while (lastIndex < index) { lastPos += tokens[lastIndex++].length; } return lastPos;
-	};
+function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing error', error), } = { }) {
 
-	let namespace = '', meta = { };
+	// Gets the char offset (within the source) of a token by its index in `tokens`.
+	let lastLoc = 0, lastIndex = 0; function locate(index) { // Must be called with increasing indices.
+		while (lastIndex < index) { lastLoc += tokens[lastIndex++].length; } return lastLoc;
+	}
+
+	const tokens = tokenize(css); let namespace = '';
 	const globalTokens = [ ], sections = [ new Section([ ], [ ], [ ], [ ], '', globalTokens), ];
 
 	loop: for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
@@ -167,7 +168,7 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 				}
 			});
 			const end = skipBlock(tokens, start);
-			sections.push(new Section(urls, urlPrefixes, domains, regexps, '', tokens.slice(start +1, end), [ pos(start +1), pos(end), ]));
+			sections.push(new Section(urls, urlPrefixes, domains, regexps, '', tokens.slice(start +1, end), [ locate(start +1), locate(end), ]));
 			index = end +1;
 		} break;
 		case '{': case '(': {
@@ -182,7 +183,7 @@ function parseStyle(css, { onerror = error => console.warn('CSS parsing error', 
 		}
 	} }
 
-	const metaBlock = globalTokens.find(token =>
+	let meta = { }; const metaBlock = globalTokens.find(token =>
 		(/^\/\*\**\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
 	); if (metaBlock) {
 		meta = parseMetaBlock(metaBlock, onerror);
@@ -223,15 +224,19 @@ function Section_toString({ minify = false, important = false, } = { }) {
 	+ (minify ? '' : '\n') +'{'+ code +'}';
 }
 
+// Splits a CSS code string into atomic parts (as far as this parser is concerned).
+// That is: some keywords, comments, strings, whitespace sequences, words
+// and other individual symbols (including control characters).
+// Especially, this skips everything within comments and strings.
 function tokenize(css) {
 	const tokens = [ ];
 	css.replace(rTokens, token => (tokens.push(token), ''));
 	return tokens;
 }
-const rNonEscape = RegExpX('n')`(
+const rNonEscape = RegExpX('n')`( # shortest possible sequence that does not end with a backslash
 	  [^\\]         # something that's not a backslash
 	| \\ [^\\]      # a backslash followed by something that's not, so the backslash is consumed
-	| ( \\\\ )*     # an even number of backslashes
+	| ( \\ \\ )*    # an even number of backslashes
 )*?`;
 const rUrlRule = RegExpX('n')`
 	(?<type> url(-prefix)?|domain|regexp ) \s* \( \s* (
@@ -244,7 +249,7 @@ const rTokens = RegExpX('gns')`
 	  @namespace\b
 	| @(-moz-)?document\b
 	| ${ rUrlRule }
-	| [{}();]
+	| [{}();] # TODO: these would also be matched by 'others' below
 	| \/\* .*? ( \*\/ | $ ) # comments
 	| ' ${ rNonEscape } ' | " ${ rNonEscape } " # strings
 	| !important\b
@@ -253,7 +258,10 @@ const rTokens = RegExpX('gns')`
 	| . # others
 `;
 
+/// Replaces all sequences of comments and whitespace tokens in a token stream with '' or ' '
+/// depending on the surrounding tokens, so that the joined code retains its CSS meaning.
 function minifyTokens(input) {
+	// remove comments and collapse surrounding whitespaces
 	if (comment(input[0])) { input[0] = ''; }
 	if (comment(input[input.length - 1])) { input[input.length - 1] = ''; }
 	for (let i = 1, end = input.length - 1; i < end; ++i) {
@@ -264,6 +272,7 @@ function minifyTokens(input) {
 			}
 		}
 	}
+	// replace whitespace sequences by '' or ' ' depending on the next (non-empty) and previous token
 	if (blank(input[0])) { input[0] = ''; }
 	if (blank(input[input.length - 1])) { input[input.length - 1] = ''; }
 	for (let i = 1, end = input.length - 1; i < end; ++i) {
@@ -281,6 +290,13 @@ function minifyTokens(input) {
 	function comment(token) { return (/^\/\*/).test(token); }
 }
 
+/**
+ * Finds the end of a code block. Minds nested blocks.
+ * @param  {[token]}  tokens  `tokenize`d code.
+ * @param  {number}   index   Index with a opening bracket.
+ * @return {index}            The index with the matching closing bracket.
+ * @throws {Error}    If a mismatching closing bracket of the wrong type is encountered or the stream ends.
+ */
 function skipBlock(tokens, index) {
 	const done = ({ '(': ')', '{': '}', '[': ']', })[tokens[index]];
 	for (++index; index < tokens.length; ++index) { switch (tokens[index]) {
@@ -291,6 +307,9 @@ function skipBlock(tokens, index) {
 	throw new Error(`missing closing bracket, expected ${ done } got EOF`);
 }
 
+// (Tries to) make all CSS declaration in the code '!important':
+// Copies the token stream and adds an '/*rS*/!important' in front of every ';' or '}' token
+// that follows a ':' token (close enough), unless the '!important' is already there.
 function addImportants(tokens) {
 	const out = [ ];
 	let hadColon = false;
@@ -313,6 +332,7 @@ function addImportants(tokens) {
 	return out;
 }
 
+// should evaluate (i.e. unescape) a (quoted) CSS string literal into a string value
 function evalString(string) {
 	// TODO: this ignores all meaningful escapes except `/` (there shouldn't be any, since URLs don't support them either, but still)
 	return string.replace(/\\+/g, _ => '\\'.repeat(Math.ceil(_.length / 2)));

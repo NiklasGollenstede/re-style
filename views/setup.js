@@ -1,9 +1,7 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/es6lib/dom': { saveAs, },
-	'node_modules/native-ext/install': { script, },
-}) => async window => {
-const { document, } = window;
-const windows = (/windows/i).test(global.navigator.oscpu);
+	'node_modules/native-ext/install': { script, download, },
+}) => async window => { const { document, } = window;
 
 document.body.innerHTML = `
 	<style>
@@ -15,18 +13,22 @@ document.body.innerHTML = `
 	To load local styles and apply styles to the browser UI of Firefox, you have to install an additional application and allow reStyle to connect to it.<br>
 	To do so, please follow these steps:
 	<ol>
-		<li>Download and execute <a href="https://github.com/NiklasGollenstede/native-ext" target="_blank">NativeExt</a>.
+		<li><a id="download-bin" download><b>Download</b></a> and
+			execute <a href="https://github.com/NiklasGollenstede/native-ext" target="_blank">NativeExt</a>.
 			After the installation, you should get a success message.</li>
-		<li><button id="save-script">Save</button><span class="unix-only">, extract</span> and run <a id="show-script" href target="_blank">this script</a>.
+		<li><a href id="save-script"><b>Save</b></a><span class="unix-only">, extract</span>
+			and run <a id="show-script" href target="_blank">this script</a>.
 			After dismissing some security warnings, you should see another a success message.</li>
-		<li>Done! you can now enable <a href="#options#.chrome"><b>UI Styles</b></a> and the <a href="#options#.local"><b>Development Mode</b></a> in the options.</li>
+		<li>Done! you can now enable <a href="#options#.chrome">UI Styles</a>
+			and the <a href="#options#.local">Development Mode</a> in the options.</li>
 	</ol>
 `; // TODO: on mac, open with 'Archive Utility', ctrl+click `add ${manifest.name}.command`, 'Open' -> 'Open'
 
+document.querySelector('#download-bin').href = download.direct;
 const show = document.querySelector('#show-script'), save = document.querySelector('#save-script');
-save.onclick = async e => !e.button && saveAs.call(window, script.url, script.name);
-show.href = window.URL.createObjectURL(new window.Blob([ '<code>', script.text.replace(/[\r\n]+/g, '<br>'), '</code>', ], { type: 'text/html', }));
+save.onclick = e => { if (!e.button) { saveAs.call(window, script.url, script.name); e.preventDefault(); } };
+show.href = window.URL.createObjectURL(new window.Blob([ '<code><pre>', script.text, '</pre></code>', ], { type: 'text/html', }));
 show.title = script.text;
-!windows && document.body.classList.add('unix');
+!(/windows/i).test(window.navigator.oscpu) && document.body.classList.add('unix');
 
 }); })(this);

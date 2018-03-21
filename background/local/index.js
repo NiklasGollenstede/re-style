@@ -172,7 +172,7 @@ async function onChromeChange(path, css) { try {
 } catch (error) { console.error('Error in fs.watch handler', error); } }
 
 function disable() {
-	if (!active) { return; } active = options.local.value = false;
+	options.local.value = false; if (!active) { return; } active = false;
 	// console.log('disable local styles');
 	Array.from(styles.values(), _=>_.destroy()); styles.clear();
 	native && native.release(onCange);
