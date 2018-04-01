@@ -33,7 +33,7 @@ class Style {
 
 	/**
 	 * Forcefully re-applies the current Sheet,
-	 * e.g. to replace old cached .`chrome` and `.web` properties.
+	 * e.g. to replace old cached `.chrome` and `.web` properties.
 	 */
 	reload() { const self = Self.get(this); !self.disabled && self.enable(); }
 
@@ -85,7 +85,7 @@ class Style {
 } const Self = new WeakMap, styles = new Map;
 
 /**
- * Static Event fired with (id) whenever a style is
+ * Static Event fired with (id) whenever a Style is
  * added, enabled, disabled, destroyed or its `.sheet` changed.
  */
 const fireChanged = setEvent(Style, 'onChanged', { lazy: false, async: true, });
@@ -97,12 +97,10 @@ setEventGetter(Style, 'changed', Self, { async: true, });
 
 //// start implementation
 
+const sXulNs = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
 const rXulNs = RegExpX`^(?: # should also remove single backslashes before testing against this
-	  url\("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"\)
-	| url\('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul'\)
-	| url\( http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul \)
-	|      "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-	|      'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul'
+	  url\( \s* (?<q1> ["']? ) ${sXulNs} \k<q1> \s* \)
+	|       \s* (?<q2> ["']  ) ${sXulNs} \k<q2> \s*
 )$`;
 
 const chromeUrlPrefixes = [
@@ -118,12 +116,12 @@ const contentUrlPrefixes = [
 	'https://addons.mozilla.org/',
 ];
 
-const RegExpXu = RegExpX('u');
+const RegExpXu = RegExpX('un');
 const toRegExp = {
-	urls(raws) { return RegExpXu`^${ raws }$`; },
-	urlPrefixes(raws) { return RegExpXu`^${ raws }.*$`; },
-	domains(raws) { return RegExpXu`^https?://(?:[^/]+\.)?${ raws }(?:$|/.*$)`; },
-	regexps(raws) { return RegExpXu`^${ raws.map(_=>RegExp(_)) }$`; },
+	urls(raws) { return RegExpXu`^ ${raws} $`; },
+	urlPrefixes(raws) { return RegExpXu`^ ${raws} .*$`; },
+	domains(raws) { return RegExpXu`^ https?:// ( [^/]+\. )? ${raws} ( $ | /.*$ )`; },
+	regexps(raws) { const exps = raws.map(_=>RegExp(_)); return RegExpXu`^ ${exps} $`; },
 };
 
 const parent = new WeakMap;

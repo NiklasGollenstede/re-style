@@ -63,7 +63,10 @@ module.exports = {
 			|| (await get(FS.access, path).catch(_=>true)) // !exists
 		) { throw new Error(`Can only open existing non-hidden .css files`); }
 		switch (process.platform) {
-			case 'win32':  (await get(execFile, 'explorer.exe', [ path, ])).catch(() => null); /* throws 'command failed' even if it worked */ break;
+			case 'win32':  (await
+				get(execFile, 'explorer.exe', [ path.replace(/\//g, '\\'), ]) // must use windows paths
+				.catch(() => null) // throws 'command failed' even if it worked
+			); break;
 			case 'linux':  (await get(execFile, 'xdg-open', [ path, ])); break;
 			case 'darwin': (await get(execFile, 'open', [ path, ])); break;
 		}

@@ -11,8 +11,8 @@ let debug; options.debug.whenChange(([ value, ]) => { debug = value; });
 class ContentStyle {
 	constructor(url, code) {
 		this.url = url;
-		// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'`
-		// so, as with `ChromeStyle`s, ''!important' has to be added to every rule
+		// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'` ( see https://www.fxsitecompat.com/en-CA/docs/2018/moz-document-support-has-been-dropped-except-for-empty-url-prefix/)
+		// so, as with `ChromeStyle`s, '!important' has to be added to every rule
 		this.code = code.toString({ minify: false, important: true, namespace: true, })
 		+ `\n/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
 		styles.add(this); styles.size === 1 && WebNavigation.onCommitted.addListener(onNavigation);

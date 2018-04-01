@@ -239,19 +239,19 @@ const rNonEscape = RegExpX('n')`( # shortest possible sequence that does not end
 	| ( \\ \\ )*    # an even number of backslashes
 )*?`;
 const rUrlRule = RegExpX('n')`
-	(?<type> url(-prefix)?|domain|regexp ) \s* \( \s* (
-		  ' (?<string> ${ rNonEscape }) '
-		| " (?<string> ${ rNonEscape }) "
+	(?<type> url(-prefix)? | domain | regexp ) \s* \( \s* (
+		  ' (?<string> ${rNonEscape} ) '
+		| " (?<string> ${rNonEscape} ) "
 		| (?<raw> .*? )
 	) \s* \)
 `;
 const rTokens = RegExpX('gns')`
 	  @namespace\b
 	| @(-moz-)?document\b
-	| ${ rUrlRule }
+	| ${rUrlRule}
 	| [{}();] # TODO: these would also be matched by 'others' below
 	| \/\* .*? ( \*\/ | $ ) # comments
-	| ' ${ rNonEscape } ' | " ${ rNonEscape } " # strings
+	| ' ${rNonEscape} ' | " ${rNonEscape} " # strings
 	| !important\b
 	| \s+ # whitespaces
 	| [\w-]+ # words
