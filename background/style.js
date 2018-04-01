@@ -41,7 +41,7 @@ class Style {
 	get url() { return Self.get(this).url; }
 	/// A fixed-length ID hashed from `.url`.
 	get id() { return Self.get(this).id; }
-	/// String-representation of the current `.sheet`.
+	/// String-representation of the current `.sheet` (before options are applied).
 	get code() { return Self.get(this).code; }
 	/// `Sheet` as a result of `.setSheet()`.
 	get sheet() { return Self.get(this).sheet; }
@@ -186,7 +186,14 @@ class _Style {
 				title: 'Add to',
 				description: `This style or parts of it can be applied to user-defined pages.<br>
 				You can edit these includes for this style here or add the current pages doain from the pop-up panel.<br>
-				All text you see in the box below is supplied by the style author, not by the ${manifest.name} extension.`,
+				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.name} extension.</i>`,
+				expanded: false, default: true,
+				children: 'dynamic',
+			},
+			options: {
+				title: 'Settings',
+				description: `This style has some custom style settings.<br>
+				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.name} extension.</i>`,
 				expanded: false, default: true,
 				children: 'dynamic',
 			},
@@ -230,35 +237,15 @@ class _Style {
 	enable() {
 		this.disabled = false;
 
-		const sheet = this.sheet = this.sheet || (typeof this.code === 'string' ? Sheet.fromCode(this.code) : Sheet.fromUserstylesOrg(this.code));
-		const { sections, namespace, meta, } = sheet;
-
-		// dynamic includes
-		const dynamic = this.options.children.include.children;
-		dynamic.splice(0, Infinity, ...(meta.include || [ ]).map(rule => {
-			const root = new Options({ model: [ {
-				name: rule.name, title: rule.title,
-				description: rule.description,
-				default: rule.default,
-				maxLength: Infinity,
-				restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, unique: '.', },
-				input: { type: 'string', default: 'example.com', },
-			}, ], prefix: 'style.'+ this.id +'.include', storage, });
-			const option = root.children[0]; parent.set(option, root);
-			option.onChange(() => !this.disabled && this.enable());
-			return root.children[0];
-		}))
-		.forEach(old => parent.get(old).destroy());
-
-
-		const isXul = rXulNs.test(namespace.replace(/\\(?!\\)/g, ''));
-		const userChrome = [ ], userContent = [ ], webContent = [ ];
+		// parse and analyze sheet
+		const sheet = this.sheet = this.sheet || Sheet.fromCode(this.code);
+		const { sections, namespace, meta, } = sheet, userChrome = [ ], userContent = [ ], webContent = [ ];
 		sections.forEach(section => {
 			const { urls, urlPrefixes, domains, regexps, } = section;
 
 			if (urls.length + urlPrefixes.length + domains.length + regexps.length === 0) {
 				if (section.isEmpty()) { return; } // TODO: this removes "global" comments
-				if (isXul) { userChrome.push(section); userContent.push(section); }
+				if (rXulNs.test(namespace.replace(/\\(?!\\)/g, ''))) { userChrome.push(section); userContent.push(section); }
 				else { webContent.push(section); } return;
 			}
 
@@ -282,8 +269,7 @@ class _Style {
 
 			// this is not going to be accurate (and therefore not exclusive)
 			regexps.forEach(source => {
-				const custom = dynamic.find(_=>_.name === source);
-				if (custom) { return void web.domains.push(...custom.values.current); }
+				if ((/^\w+$/).test(source)) { return; } // dynamic include or has no effect
 				(/chrome\\?:\\?\/\\?\//).test(source) && chrome_.regexps.push(source);
 				(/(?:resource|moz-extension)\\?:\\?\/\\?\/|(?:about|blob|data|view-source)\\?:|addons.*mozilla(?:\[\.\]|\\?\\.)org/)
 				.test(source) && content.regexps.push(source);
@@ -295,25 +281,74 @@ class _Style {
 			web.urls.length     + web.urlPrefixes.length     + web.domains.length     + web.regexps.length     > 0 && webContent.push(web);
 		});
 
-		if (userChrome.length || userContent.length) {
-			const chrome = new ChromeStyle(this.url,
+		// build dynamic includes and options UI
+		const styleOptions = (branch, model, onChange) => {
+			const dynamic = this.options.children[branch].children;
+			const rules = meta[branch]; if (dynamic.rules === rules) { return dynamic; } dynamic.rules = rules;
+			dynamic.splice(0, Infinity, ...(rules || [ ]).map(rule => {
+				const root = new Options({ model: [ {
+					name: rule.name, title: rule.title,
+					description: rule.description,
+					default: rule.default,
+					...model(rule, rules)
+				}, ], prefix: 'style.'+ this.id +'.'+ branch, storage, });
+				const option = root.children[0]; parent.set(option, root);
+				option.onChange(onChange);
+				return root.children[0];
+			}))
+			.forEach(old => parent.get(old).destroy());
+			return dynamic;
+		};
+		const dynamicIncludes = styleOptions('include', () => ({
+			maxLength: Infinity,
+			restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, unique: '.', },
+			input: { type: 'string', default: 'example.com', },
+		}), () => { applyIncludes(); apply(); });
+		const dynamicOptions = styleOptions('options', rule => ({
+			input: { ...rule, },
+		}), () => { applyOptions(); apply(); });
+
+
+		const applyIncludes = () => {
+			sections.forEach(section => {
+				const web = webContent.find(_=>_.tokens === section.tokens) || section.cloneWithoutIncludes();
+				web.dynamic.splice(0, Infinity);
+				section.regexps.forEach(source => {
+					const custom = dynamicIncludes.find(_=>_.name === source);
+					if (!custom || !custom.values.current.length) { return; }
+					web.dynamic.push(toRegExp.domains(custom.values.current).source);
+					!webContent.includes(web) && webContent.push(web);
+				});
+			});
+		}; dynamicIncludes.length && applyIncludes();
+
+
+		const applyOptions = () => {
+			const prefs = { }; dynamicOptions.forEach(({ name, value, }) => (prefs[name] = value));
+			sections.forEach(_=>_.setOptions(prefs));
+		}; dynamicOptions.length && applyOptions();
+
+
+		const apply = () => {
+			const chrome = !userChrome.length && !userContent.length ? null
+			: new ChromeStyle(this.url,
 				userChrome.length  ? sheet.cloneWithSections(userChrome)  : null,
 				userContent.length ? sheet.cloneWithSections(userContent) : null,
-			);
-			this.chrome && this.chrome.destroy(); this.chrome = chrome;
-		}
-		if (webContent.length) {
-			const web = new WebStyle(this.url, sheet.cloneWithSections(webContent));
+			); this.chrome && this.chrome.destroy(); this.chrome = chrome;
+
+			const web = !webContent.length ? null
+			: new WebStyle(this.url, sheet.cloneWithSections(webContent));
 			this.web && this.web.destroy(); this.web = web;
-		}
 
-		if (meta.name && meta.name !== this.name) {
-			this.name = meta.name;
-			if (this.options.children.name.values.isSet) { return; }
-			this.options.children.name.value = ''; this.options.children.name.reset();
-		}
+			if (meta.name && meta.name !== this.name) {
+				this.name = meta.name;
+				if (!this.options.children.name.values.isSet) {
+					this.options.children.name.value = ''; this.options.children.name.reset();
+				}
+			}
 
-		this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
+			this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
+		}; apply();
 	}
 
 	disable(supress) {

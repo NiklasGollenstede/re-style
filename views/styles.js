@@ -8,6 +8,7 @@
 	'background/style': Style,
 	'common/options': options,
 	'fetch!./styles.css:css': css,
+	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorCss,
 }) => async window => { const { document, } = window;
 
 const Sections = {
@@ -26,6 +27,7 @@ const Sections = {
 	},
 };
 
+document.head.appendChild(createElement('style', [ editorCss, ]));
 document.head.appendChild(createElement('style', [ css, ]));
 
 for (const [ name, { Type, title, before, empty, after, }, ] of Object.entries(Sections)) {
@@ -53,16 +55,18 @@ Style.onChanged(id => {
 		list.insertBefore(createRow(style), Array.from(list.children).find(row => row.dataset.url > style.url));
 	} else {
 		element.classList[style.disabled ? 'add' : 'remove']('disabled');
-		// replace the .include branch
-		const host = element.querySelector('.pref-name-include .pref-children')
-		|| element.querySelector('.pref-name-include .toggle-target').appendChild(createElement('fieldset', { className: 'pref-children', }));
-		Array.from(host.childNodes).forEach(_=>_.remove());
-		if (style.options.include.children.length) {
-			new Editor({ options: style.options.include.children, host, });
-			element.querySelector('.pref-name-include').classList.remove('empty');
-		} else {
-			element.querySelector('.pref-name-include').classList.add('empty');
-		}
+		// replace the .include and .options branches
+		[ 'include', 'options', ].forEach(name => {
+			const host = element.querySelector(`.pref-name-${name} .pref-children`)
+			|| element.querySelector(`.pref-name-${name} .toggle-target`).appendChild(createElement('fieldset', { className: 'pref-children', }));
+			Array.from(host.childNodes).forEach(_=>_.remove());
+			if (style.options[name].children.length) {
+				new Editor({ options: style.options[name].children, host, });
+				element.querySelector(`.pref-name-${name}`).classList.remove('empty');
+			} else {
+				element.querySelector(`.pref-name-${name}`).classList.add('empty');
+			}
+		});
 	}
 }, { owner: window, });
 
@@ -70,8 +74,9 @@ function createRow(style) {
 	const element = new Editor({
 		options: style.options, onCommand: onCommand.bind(null, style),
 		host: createElement('div', { id: style.id, className: style.disabled ? 'disabled' : '', dataset: { url: style.url, }, }),
-	});
+	}); element._style = style;
 	!style.options.include.children.length && element.querySelector('.pref-name-include').classList.add('empty');
+	!style.options.options.children.length && element.querySelector('.pref-name-options').classList.add('empty');
 	return element;
 }
 

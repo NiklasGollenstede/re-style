@@ -35,6 +35,8 @@ class ContentStyle {
 
 //// start implementation
 
+// TODO: handle pages that re-appear from the BF-cache
+
 const toAdd = new Set, toRemove = new Set, styles = new Set;
 
 async function refresh() {
