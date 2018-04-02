@@ -41,7 +41,7 @@ class Style {
 	get url() { return Self.get(this).url; }
 	/// A fixed-length ID hashed from `.url`.
 	get id() { return Self.get(this).id; }
-	/// String-representation of the current `.sheet` (before options are applied).
+	/// String-representation of the current `.sheet`, before any processing.
 	get code() { return Self.get(this).code; }
 	/// `Sheet` as a result of `.setSheet()`.
 	get sheet() { return Self.get(this).sheet; }
@@ -290,7 +290,7 @@ class _Style {
 					name: rule.name, title: rule.title,
 					description: rule.description,
 					default: rule.default,
-					...model(rule, rules)
+					...model(rule, rules),
 				}, ], prefix: 'style.'+ this.id +'.'+ branch, storage, });
 				const option = root.children[0]; parent.set(option, root);
 				option.onChange(onChange);
@@ -304,9 +304,10 @@ class _Style {
 			restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, unique: '.', },
 			input: { type: 'string', default: 'example.com', },
 		}), () => { applyIncludes(); apply(); });
-		const dynamicOptions = styleOptions('options', rule => ({
-			input: { ...rule, },
-		}), () => { applyOptions(); apply(); });
+		const dynamicOptions = styleOptions('options',
+			({ name: _1, title: _2, description: _3, unit = '', restrict, ...input }) => ({ unit, restrict, input, }),
+			() => { applyOptions(); apply(); }
+		);
 
 
 		const applyIncludes = () => {
@@ -324,7 +325,9 @@ class _Style {
 
 
 		const applyOptions = () => {
-			const prefs = { }; dynamicOptions.forEach(({ name, value, }) => (prefs[name] = value));
+			const prefs = { }; dynamicOptions.forEach(
+				({ name, value, model: { unit, }, }) => (prefs[name] = value + unit)
+			);
 			sections.forEach(_=>_.setOptions(prefs));
 		}; dynamicOptions.length && applyOptions();
 

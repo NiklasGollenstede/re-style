@@ -24,7 +24,7 @@ class Sheet {
 
 	/**
 	 * Transforms `userstyles.orgs` JSON sheets into a `Sheet`.
-	 * @see  `Section.Section.fromUserstylesOrg`.
+	 * @see  `Section.fromUserstylesOrg`.
 	 * @param  {object}  json  Parsed JSON object returned by `userstyles.orgs` API.
 	 * @return {Sheet}         A `Sheet` with `Sections` complying with this API description.
 	 */
@@ -43,7 +43,7 @@ class Sheet {
 
 	/**
 	 * Casts the `Sheet` (back) into a string. Note that this may not result
-	 * in the exact original code While formatting within blocks can be mostly preserved,
+	 * in the exact original code. While formatting within blocks can be mostly preserved,
 	 * all global code and comments will be placed at the beginning of the file.
 	 * @see  `Section.toString`, which is called with `options` to stringify each `Section`.
 	 * @param  {boolean}  .namespace  Whether to include the default namespace.
@@ -101,6 +101,7 @@ class Section {
 	/// Returns `true` iff the `Section`s code consists of only comments and whitespaces.
 	isEmpty() { return !this.tokens.some(_=>!(/^\s*$|^\/\*/).test(_)); }
 
+	/// Applies the user set options as a { [name]: value, } object to this sheet and all sheets that share its `.tokens`.
 	setOptions(prefs) { return Section_setOptions.call(this, prefs); }
 
 	/**
@@ -195,6 +196,7 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 	return new Sheet(meta, sections, namespace);
 }
 
+// TODO: ditch this and just convert the objects to strings, then re-parse
 function Section_fromUserstylesOrg({ urls, urlPrefixes, domains, regexps, code, }) {
 	// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
 	// but e.g. to compare them against actual URLs, their escapes need to be evaluated
@@ -206,8 +208,8 @@ function Section_fromUserstylesOrg({ urls, urlPrefixes, domains, regexps, code, 
 
 function Section_toString({ minify = false, important = false, } = { }) {
 	let { tokens, } = this;
-	minify && (tokens = minifyTokens(tokens));
 	important && (tokens = addImportants(tokens));
+	minify && (tokens = minifyTokens(tokens));
 
 	if (this.urls.length + this.urlPrefixes.length + this.domains.length + this.regexps.length + this.dynamic.length === 0) { return tokens.join(''); }
 
@@ -225,7 +227,7 @@ function Section_setOptions(prefs) {
 	// format: /*[[!<name>]]*/ <fallback> /*[[/<name>]]*/
 	let start = -1, name = null; const { tokens, } = this;
 	for (let i = 0, l = tokens.length, token = tokens[i]; i < l; token = tokens[++i]) {
-		const match = (/\/\*\[\[([\!\/])(\w+)\]\]\*\//).exec(token); if (!match) { continue; }
+		const match = (/\/\*\[\[([\!\/])([a-zA-Z][\w-]+)\]\]\*\//).exec(token); if (!match) { continue; }
 		if (match[1] === '!') {
 			start = i; name = match[2];
 		} else {
@@ -260,6 +262,7 @@ const rUrlRule = RegExpX('n')`
 	) \s* \)
 `;
 const rTokens = RegExpX('gns')`
+	# TODO: \\ [^] should be a token, probably with highest priority
 	  @namespace\b
 	| @(-moz-)?document\b
 	| ${rUrlRule}
@@ -271,6 +274,38 @@ const rTokens = RegExpX('gns')`
 	| [\w-]+ # words
 	| . # others
 `;
+
+// Forbids not CSS-escaped occurrences of `chars` in the string to match.
+const disallowSpecial = chars => RegExpX('s')`^(?:
+	  \/\* .*? \*\/             # comments
+	| (?!\/\*) [^\\"'${chars}]  # normal characters, except comment begin
+	| \\ .                      # backslash escaped anything
+	| (?<q>["'])  (?:           # quoted string, i.e.: quote
+		  (?!\k<q>) [^\\\n]         # anything except that quote or backslash
+		| \\ .                      # backslash escaped anything
+	)*? \k<q>                       # closing quote
+)*$`;
+// These RegExps decide whether a string can be pasted in a CSS sheet in different contexts
+// without breaking more than the current statement or injecting additional statements.
+// This meant help users not to mess up, not as a strict security mechanism.
+// Must still make sure () and [] are balanced.
+const rSelector = disallowSpecial('{};');
+const rValue = disallowSpecial(':{};');
+const rDeclarations = disallowSpecial('{}');
+const rUnitC = RegExpX('n')`(
+	  %                                   # percent
+	| cap|ch|em|ex|ic|lh|rem|rlh          # font based
+	| vh|vw|vi|vb|vmin|vmax               # viewport based
+	| px|cm|mm|Q|in|pc|pt                 # absolute lengths
+	| s|ms|hz|khz                         # time
+	| dpcm|dpi|dppx                       # resolution
+	| deg                                 # others (TODO: are there more?)
+)`, rUnit = RegExpX`^${rUnitC}$`;
+const rDimension = RegExpX('n')`^(
+	  [+-]? (?: \d+ (\.\d*)? | \.\d+ ) ${rUnitC}   # sign plus digits or decimal point with digits before and/or after, followed by a unit
+	| auto | inherit | initial | unset             # or a keyword
+)$`;
+
 
 /// Replaces all sequences of comments and whitespace tokens in a token stream with '' or ' '
 /// depending on the surrounding tokens, so that the joined code retains its CSS meaning.
@@ -341,7 +376,7 @@ function addImportants(tokens) {
 		} break;
 		case '}': case ';': {
 			hadColon && tokens[((/\s+/).test(tokens[index - 1]) ? index - 2 : index - 1)] !== '!important'
-			&& out.push('/*rS*/!important'); hadColon = false;
+			&& out.push('/*rS*/', '!important'); hadColon = false;
 		} break;
 	} out.push(tokens[index]); }
 	return out;
@@ -358,7 +393,7 @@ function parseMetaBlock(block, onerror) {
 
 	const meta = { }; for (const entry of entries) { try {
 		let key = (/^\w+/).exec(entry)[0];
-		switch (key) {
+		block: switch (key) {
 			case 'title': key = 'name'; /* falls through */
 			case 'licence': key = 'license'; /* falls through */
 			case 'name': case 'author': case 'license': {
@@ -376,20 +411,51 @@ function parseMetaBlock(block, onerror) {
 				});
 			} break;
 			case 'option': {
+				// for orientation: https://developer.mozilla.org/en-US/docs/Archive/Add-ons/Add-on_SDK/High-Level_APIs/simple-prefs
 				const { name, title, description, type, ...props } = parseTable(entry.slice(key.length));
 				if (!name) { console.error(`ignoring @option rule without name:`, entry); break; }
 				const option = {
 					name, title: title || (description ? '' : name), description, type,
-					default: props.default || '',
+					default: props.default || props.value || '',
 				}; switch (type) {
+					case 'color': /* nothing to do */ break;
 					case 'bool': option.type = 'boolean'; /* falls through */
 					case 'boolean': {
 						if (!('on' in props) || !('off' in props)) { console.error(`ignoring boolean @option rule without 'on' and 'off' values`, entry); break; }
 						option.type = 'boolInt'; option.on = props.on; option.off = props.off;
 						option.default = props.on === props.default ? props.on : props.off;
 						option.description = undefined; option.suffix = description;
+						option.restrict = { type: 'string', match: RegExpX`^${[ props.on, props.off, ]}$`, };
 					} break;
-					default: console.error(`ignoring @option rule with invalit type "${type}"`, entry); break;
+					case 'integer': case 'number': {
+						option.restrict = { type: 'number', match: type === 'integer' && { exp: (/^-?\d+$/), message: 'This value must be an integer', }, };
+						('min' in props) && (option.restrict.from = +props.min);
+						('max' in props) && (option.restrict.to = +props.max);
+						const { unit, default: value, } = props; if (unit && rUnit.test(unit)) {
+							option.suffix = unit; option.unit = unit;
+							option.default = +(value.endsWith(unit) ? value.slice(0, -unit.length) : value) || 0;
+						} else {
+							option.default = +value || 0;
+						}
+					} break;
+					// custom CSS snippets
+					case 'css-dimension': {
+						option.type = 'string'; // TODO: use shorter field
+						option.restrict = { type: 'string', match: {
+							exp: rDimension, message: 'This value must be an CSS dimension as <number><unit>,\n'
+							+ 'where unit is e.g. px, %, em, deg, ms, dpi.\nOr a keyword like auto, inherit or unset.',
+						}, };
+					} break;
+					case 'css-selector': { option.restrict = { match: {
+						exp: rSelector, message: `The value may not contain unescaped ';', '{' or '}' or end within strings or comments`,
+					}, custom: balancedBrackets, }; option.type = 'string'; } break;
+					case 'css-value': { option.restrict = { match: {
+						exp: rValue, message: `The value may not contain unescaped ':', ';', '{' or '}' or end within strings or comments`,
+					}, custom: balancedBrackets, }; option.type = 'string'; } break;
+					case 'css-declarations': { option.restrict = { match: {
+						exp: rDeclarations, message: `The value may not contain unescaped '{' or '}' or end within strings or comments`,
+					}, custom: balancedBrackets, }; option.type = 'code'; } break;
+					default: console.error(`ignoring @option rule with invalit type "${type}":n * @`+ entry); break block;
 				} (meta.options = meta.options || [ ]).push(option);
 			} break;
 		}
@@ -401,6 +467,14 @@ function parseMetaBlock(block, onerror) {
 			const match = (/^([\w-]+)(?:(?:\s*:)?\s+(\S.*))?$/).exec(line); if (!match) { continue; }
 			const [ , key, value, ] = match; table[key] = value;
 		} return table;
+	}
+
+	function balancedBrackets(string) {
+		const tokens = tokenize(string);
+		for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
+			case '(': case '{': case '[': index = skipBlock(tokens, index); break;
+			case ')': case '}': case ']': throw new Error(`Unexpected closing bracket ${ tokens[index] }`);
+		} }
 	}
 }
 

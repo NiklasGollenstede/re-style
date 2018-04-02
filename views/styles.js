@@ -6,7 +6,6 @@
 	'background/local/': LocalStyle,
 	'background/remote/': RemoteStyle,
 	'background/style': Style,
-	'common/options': options,
 	'fetch!./styles.css:css': css,
 	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorCss,
 }) => async window => { const { document, } = window;
@@ -55,17 +54,15 @@ Style.onChanged(id => {
 		list.insertBefore(createRow(style), Array.from(list.children).find(row => row.dataset.url > style.url));
 	} else {
 		element.classList[style.disabled ? 'add' : 'remove']('disabled');
-		// replace the .include and .options branches
+		// replace the .include and .options branches if they changed
 		[ 'include', 'options', ].forEach(name => {
 			const host = element.querySelector(`.pref-name-${name} .pref-children`)
 			|| element.querySelector(`.pref-name-${name} .toggle-target`).appendChild(createElement('fieldset', { className: 'pref-children', }));
-			Array.from(host.childNodes).forEach(_=>_.remove());
-			if (style.options[name].children.length) {
-				new Editor({ options: style.options[name].children, host, });
-				element.querySelector(`.pref-name-${name}`).classList.remove('empty');
-			} else {
-				element.querySelector(`.pref-name-${name}`).classList.add('empty');
-			}
+			const options = style.options[name].children;
+			if (host.firstChild && options.length && host.firstChild.pref === options[0]) { return; }
+			Array.from(host.childNodes).forEach(_=>_.remove()); // must slice or iteration breaks
+			options.length && new Editor({ options, host, });
+			element.querySelector(`.pref-name-${name}`).classList[options.length ? 'remove' : 'add']('empty');
 		});
 	}
 }, { owner: window, });

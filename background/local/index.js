@@ -145,7 +145,7 @@ async function onChromeChange(path, css) { try {
 		const now = Sheet.fromCode(css.replace(/\/\*rS\*\/!important/g, ''), { onerror: error => { throw error; }, });
 		const old = style.sheet, oldSections = old.sections.slice();
 
-		let lastPos = 0; for (const section of now.sections) { // each `@document` section
+		let lastPos = 0; for (const section of now.sections) { // for each `@document` section
 			const oldSection = oldSections.find(old => // find old section with same includes
 				   sameArray(section.urls, old.urls)
 				&& sameArray(section.urlPrefixes, old.urlPrefixes)
@@ -159,7 +159,7 @@ async function onChromeChange(path, css) { try {
 			parts.splice( // this requires the sections to stay in the same order
 				parts.length - 1, 1, // pop last
 				style.code.slice(lastPos, oldSection.location[0]),
-				section.tokens.join(''),
+				section.tokens.join(''), // new code with user selected settings applied
 				style.code.slice(lastPos = oldSection.location[1])
 			);
 		}
