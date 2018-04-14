@@ -17,7 +17,7 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 
 	manifestJson.browser_action.default_icon = manifestJson.icons;
 
-	manifestJson.applications.gecko.strict_min_version = '58.0';
+	delete manifestJson.background.persistent;
 
 	files.node_modules = [
 		'es6lib/dom.js',
@@ -56,12 +56,4 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'web-ext-utils/utils/semver.js',
 	];
 
-	if (options.run && !(options.run.prefs === 0 || options.run.prefs === null)) {
-		const run = typeof options.run === 'object' ? options.run
-		: (options.run = { bin: typeof options.run === 'string' ? options.run : undefined, });
-		const prefs = {
-			// ...
-		};
-		run.prefs ? Object.assign(run.prefs, prefs) : (run.prefs = prefs);
-	}
 };

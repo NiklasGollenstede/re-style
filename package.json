@@ -20,18 +20,19 @@
 		"es6lib": "0.0.2",
 		"native-ext": "0.2.3",
 		"regexpx": "0.1.4",
-		"web-ext-build": "0.0.6",
-		"web-ext-utils": "0.0.17"
+		"web-ext-build": "0.0.8",
+		"web-ext-utils": "0.0.18"
 	},
 	"devDependencies": {
-		"babel-eslint": "7.1.1",
-		"eslint": "3.14.1",
+		"babel-eslint": "8.2.2",
+		"eslint": "4.19.1",
 		"eslintrc": "NiklasGollenstede/eslintrc#3872881"
 	},
 	"scripts": {
 		"postinstall": "npm start",
 		"start": "web-ext-build",
-		"lint": "eslint --ignore-path .gitignore --ignore-pattern lib ."
+		"lint": "eslint --ignore-path .gitignore .",
+		"sign": "web-ext-build {beta:$APPVEYOR_BUILD_NUMBER,sign:1}"
 	},
 	"eslintConfig": {
 		"extends": "./node_modules/eslintrc/web-ext.js"

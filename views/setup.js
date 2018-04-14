@@ -6,6 +6,7 @@
 document.body.innerHTML = `
 	<style>
 		:root { font-family: Segoe UI, Tahoma, sans-serif; }
+		body { margin: 20px; }
 		code { padding: 2px 3px; border-radius: 3px; }
 		body:not(.unix) .unix-only { display: none; }
 	</style>

@@ -54,7 +54,7 @@
 }
 
 .pref-name-name input:not(#foo) {
-	width: 340px;
+	width: 335px;
 	max-width: calc(100vw - 45px);
 	margin-right: 10px;
 }
@@ -72,6 +72,7 @@
 	display: inline;
 	width: 100%;
 	vertical-align: top;
+	margin-right: 1em;
 }
 .pref-name-edit>.toggle-switch,
 .pref-name-include>.toggle-switch,
@@ -107,8 +108,24 @@
 }
 .pref-name-include .pref-children,
 .pref-name-options .pref-children {
-	margin: 5px 0 20px 0;
+	margin: 5px 0 5px 0;
 	border-radius: 3px;
+}
+.pref-name-include .pref-children .pref-title,
+.pref-name-options .pref-children .pref-title {
+	display: block;
+	font-size: 120%;
+	font-weight: bold;
+	margin: 5px 0 3px 0;
+}
+.pref-name-include .pref-children .pref-description,
+.pref-name-options .pref-children .pref-description {
+	display: block;
+	margin: 3px 0 5px 0;
+}
+.pref-name-include .pref-children .values-container,
+.pref-name-options .pref-children .values-container {
+	margin: 5px 0;
 }
 .pref-name-include input[type="text"] {
 	max-width: 250px;
@@ -129,6 +146,9 @@
 	outline: none; box-shadow: none;
 	height: unset; font-size: unset; padding: 0;
 	cursor: pointer; text-decoration: underline;
+}
+.pref-name-edit>.toggle-target>.values-container>.input-row>.inputs-wrapper>.input-wrapper span {
+	padding: 0; font-size: unset;
 }
 
 /**

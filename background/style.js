@@ -271,7 +271,7 @@ class _Style {
 			regexps.forEach(source => {
 				if ((/^\w+$/).test(source)) { return; } // dynamic include or has no effect
 				(/chrome\\?:\\?\/\\?\//).test(source) && chrome_.regexps.push(source);
-				(/(?:resource|moz-extension)\\?:\\?\/\\?\/|(?:about|blob|data|view-source)\\?:|addons.*mozilla(?:\[\.\]|\\?\\.)org/)
+				(/(?:resource|moz-extension)\)?\\?:\\?\/\\?\/|(?:about|blob|data|view-source)\)?\\?:/)
 				.test(source) && content.regexps.push(source);
 				web.regexps.push(source); // could pretty much always (also) match a web page
 			});

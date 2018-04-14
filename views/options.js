@@ -12,6 +12,7 @@
 document.title = 'Options - '+ manifest.name;
 document.head.appendChild(createElement('style', [ css, ]));
 document.head.appendChild(createElement('style', [ String.raw`
+body { margin: 15px; }
 textarea {
 	width: 100%; height: 100%; max-width: 100%; resize: vertical; -moz-tab-size: 4;
 }

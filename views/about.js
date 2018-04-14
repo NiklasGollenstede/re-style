@@ -7,6 +7,7 @@
 }) => ({ document, }) => {
 
 document.body.appendChild(document.createElement('style')).textContent = css;
+document.body.style.margin = 'auto'; document.body.style.padding = '10px 30px';
 
 about({
 	manifest, package: packageJson,
