@@ -1,5 +1,5 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { browserAction, Tabs, Windows, rootUrl, },
+	'node_modules/web-ext-utils/browser/': { browserAction, Tabs, rootUrl, },
 	'node_modules/web-ext-utils/browser/version': { fennec, },
 	'node_modules/web-ext-utils/loader/views': { getUrl, openView, },
 	'node_modules/web-ext-utils/utils/': { reportSuccess, },
@@ -12,6 +12,7 @@
 
 /**
  * This file autonomously manages the browser action badge text and color.
+ * It also displays the browser restart prompt.
  */
 
 //// start implementation
@@ -26,18 +27,17 @@ fennec && browserAction.onClicked.addListener(() => openView('panel'));
  * '+' number matched custom include rules.
  * Updating this for every tab on every change seems inefficient, so this happens when:
  *    * the extension starts, for all visible tabs
+ *    * any style changes or is added/removed, for all visible tabs
  *    * a tab becomes visible, for that tab
  *    * a visible tabs url changes, for that tab
- *    * any style changes or is added/removed, for the current tab // TODO: should e all visible tabs
  */
-for (const { id: windowId, } of (await Windows.getAll())) {
-	Tabs.query({ windowId, active: true, }).then(([ { id, url, }, ]) => setBage(id, url));
-}
+setBage(); Style.onChanged(debounce(() => setBage(), 50));
 Tabs.onActivated.addListener(({ tabId, }) => setBage(tabId));
 Tabs.onUpdated.addListener((tabId, change, { active, }) => active && ('url' in change) && setBage(tabId, change.url));
-Style.onChanged(debounce(() => setBage(), 50));
 async function setBage(tabId, url) {
-	tabId == null && (tabId = (await Tabs.query({ currentWindow: true, active: true, }))[0].id);
+	if (arguments.length === 0) { // update all visible
+		return void (await Tabs.query({ active: true, })).forEach(({ id, url, }) => setBage(id, url));
+	}
 	url = new global.URL(url || (await Tabs.get(tabId)).url);
 	let matching = 0, extra = 0; for (const [ , style, ] of Style) {
 		if (style.disabled) { continue; }

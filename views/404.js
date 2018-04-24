@@ -3,12 +3,12 @@
 }) => ({ document: { body, }, history: { state, }, }, { name, }) => {
 
 const code = (/^[45]\d\d$/).test(name) && name;
-!code && console.error(`Got unknown view "${ name }"`);
+!code && console.error(`Got unknown view "${name}"`);
 
 let message; switch (code) {
-	case '403': message = (state && state.from ? `"${ state.from }"` : 'The page') +` can not be accessed`; break;
-	case '404': message = `${ manifest.name } could not find that page`; break;
-	default:    message = `The page "${ name }" does not exist`; break;
+	case '403': message = (state && state.from ? `"${state.from}"` : 'The page') +` can not be accessed`; break;
+	case '404': message = `${manifest.name} could not find that page`; break;
+	default:    message = `The page "${name}" does not exist`; break;
 }
 
 body.innerHTML = `<style>:root{font-family:Segoe UI,Tahoma,sans-serif;}</style><h1 id=code></h1><h3 id=message></h3>`;
