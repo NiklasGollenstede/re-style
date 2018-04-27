@@ -61,6 +61,9 @@ class Sheet {
 		).join(minify ? '' : '\n\n');
 	}
 
+	/// Gets the currently set / default options as a { [name]: value, } object.
+	getOptions() { return Sheet_getOptions.call(this); }
+
 	toJSON() { return Object.assign({ }, this); }
 
 	static fromJSON({ meta, sections, namespace, }) {
@@ -101,7 +104,7 @@ class Section {
 	/// Returns `true` iff the `Section`s code consists of only comments and whitespaces.
 	isEmpty() { return !this.tokens.some(_=>!(/^\s*$|^\/\*/).test(_)); }
 
-	/// Applies the user set options as a { [name]: value, } object to this sheet and all sheets that share its `.tokens`.
+	/// Applies the user set options as a { [name]: value, } object to this `Section`s `.tokens`.
 	setOptions(prefs) { return Section_setOptions.call(this, prefs); }
 
 	/**
@@ -183,17 +186,29 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 		}
 	} }
 
-	let meta = { }; const metaBlock = globalTokens.find(token =>
+	const meta = { }, self = new Sheet(meta, sections, namespace);
+
+	const metaBlock = globalTokens.find(token =>
 		(/^\/\*\**\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
 	); if (metaBlock) {
-		meta = parseMetaBlock(metaBlock, onerror);
+		Object.assign(meta, parseMetaBlock(metaBlock, onerror));
 	} else { globalTokens.some(token => {
 		if (!(/^\/\*/).test(token)) { return; }
 		const match = (/^(?:\ ?\*\ ?@(?:name|title)[\ \t]+|\ ?\*\ (?:name|title)[\ \t]*:[\ \t]*)(.*)/mi).exec(token);
 		match && (meta.name = match[1]);
 	}); }
+	if (meta.options) {
+		const defaults = self.getOptions();
+		meta.options.forEach(option => { if (option.name in defaults) {
+			const value = defaults[option.name];
+			option.default = option.unit && value.endsWith(option.unit)
+			? value.slice(0, -option.unit.length) : value;
+			option.restrict && option.restrict.type === 'number' && (option.default -= 0);
+		} else { option.name = null; } });
+		meta.options = meta.options.filter(_=>_.name);
+	}
 
-	return new Sheet(meta, sections, namespace);
+	return self;
 }
 
 // TODO: ditch this and just convert the objects to strings, then re-parse
@@ -223,21 +238,38 @@ function Section_toString({ minify = false, important = false, } = { }) {
 	+ (minify ? '' : '\n') +'{'+ tokens.join('') +'}';
 }
 
-function Section_setOptions(prefs) {
+const rOptionTag = RegExpX`^
+	\/\*\[\[              # /*[[
+		([\!\/])          # ! for opening, / for closing
+		([a-zA-Z][\w-]+)  # name
+	\]\]\*\/              # ]]*/
+$`;
+function iterateOptions(tokens, prefs, set) {
 	// format: /*[[!<name>]]*/ <fallback> /*[[/<name>]]*/
-	let start = -1, name = null; const { tokens, } = this;
+	let start = -1, name = null;
 	for (let i = 0, l = tokens.length, token = tokens[i]; i < l; token = tokens[++i]) {
-		const match = (/\/\*\[\[([\!\/])([a-zA-Z][\w-]+)\]\]\*\//).exec(token); if (!match) { continue; }
+		const match = rOptionTag.exec(token); if (!match) { continue; }
 		if (match[1] === '!') {
 			start = i; name = match[2];
 		} else {
-			if (name !== match[2] || !(name in prefs)) { continue; }
-			const now = tokenize(prefs[name]);
-			const old = tokens.splice(start + 1, i - start - 1, ...now);
-			i += now.length - old.length;
+			if (name !== match[2] || set && !(name in prefs)) { continue; }
+			if (set) {
+				const now = tokenize(prefs[name]);
+				const old = tokens.splice(start + 1, i - start - 1, ...now);
+				i += now.length - old.length;
+			} else {
+				prefs[name] = tokens.slice(start + 1, i).join('');
+			}
 			start = -1; name = null;
 		}
 	}
+	return prefs;
+}
+function Section_setOptions(prefs) {
+	iterateOptions(this.tokens, prefs, true);
+}
+function Sheet_getOptions() {
+	return this.sections.reduce((prefs, { tokens, }) => iterateOptions(tokens, prefs, false), { });
 }
 
 // Splits a CSS code string into atomic parts (as far as this parser is concerned).
@@ -289,7 +321,7 @@ const disallowSpecial = chars => RegExpX('s')`^(?:
 // without breaking more than the current statement or injecting additional statements.
 // This meant help users not to mess up, not as a strict security mechanism.
 // Must still make sure () and [] are balanced.
-const rSelector = disallowSpecial('{};');
+const rSelector = RegExpX`^(?=\s*\S[^]*[^,]$)${ disallowSpecial('{};') }`; // must not me empty or end with a comma
 const rValue = disallowSpecial(':{};');
 const rDeclarations = disallowSpecial('{}');
 const rUnitC = RegExpX('n')`(
@@ -416,14 +448,12 @@ function parseMetaBlock(block, onerror) {
 				if (!name) { console.error(`ignoring @option rule without name:`, entry); break; }
 				const option = {
 					name, title: title || (description ? '' : name), description, type,
-					default: props.default || props.value || '',
 				}; switch (type) {
 					case 'color': /* nothing to do */ break;
 					case 'bool': option.type = 'boolean'; /* falls through */
 					case 'boolean': {
 						if (!('on' in props) || !('off' in props)) { console.error(`ignoring boolean @option rule without 'on' and 'off' values`, entry); break; }
 						option.type = 'boolInt'; option.on = props.on; option.off = props.off;
-						option.default = props.on === props.default ? props.on : props.off;
 						option.description = undefined; option.suffix = description;
 						option.restrict = { type: 'string', match: RegExpX`^${[ props.on, props.off, ]}$`, };
 					} break;
@@ -431,12 +461,8 @@ function parseMetaBlock(block, onerror) {
 						option.restrict = { type: 'number', match: type === 'integer' && { exp: (/^-?\d+$/), message: 'This value must be an integer', }, };
 						('min' in props) && (option.restrict.from = +props.min);
 						('max' in props) && (option.restrict.to = +props.max);
-						const { unit, default: value, } = props; if (unit && rUnit.test(unit)) {
-							option.suffix = unit; option.unit = unit;
-							option.default = +(value.endsWith(unit) ? value.slice(0, -unit.length) : value) || 0;
-						} else {
-							option.default = +value || 0;
-						}
+						const { unit, } = props; if (unit && rUnit.test(unit))
+						{ option.suffix = unit; option.unit = unit; }
 					} break;
 					// custom CSS snippets
 					case 'css-dimension': {
@@ -446,9 +472,9 @@ function parseMetaBlock(block, onerror) {
 							+ 'where unit is e.g. px, %, em, deg, ms, dpi.\nOr a keyword like auto, inherit or unset.',
 						}, };
 					} break;
-					case 'css-selector': { option.restrict = { match: {
-						exp: rSelector, message: `The value may not contain unescaped ';', '{' or '}' or end within strings or comments`,
-					}, custom: balancedBrackets, }; option.type = 'string'; } break;
+					case 'css-selector': case 'css-selector-multi': { option.restrict = { match: {
+						exp: rSelector, message: `The value may not be empty, end with a ',', contain unescaped ';', '{' or '}' or end within strings or comments`,
+					}, custom: balancedBrackets, }; option.type = type === 'css-selector' ? 'string' : 'code'; } break;
 					case 'css-value': { option.restrict = { match: {
 						exp: rValue, message: `The value may not contain unescaped ':', ';', '{' or '}' or end within strings or comments`,
 					}, custom: balancedBrackets, }; option.type = 'string'; } break;
@@ -463,9 +489,11 @@ function parseMetaBlock(block, onerror) {
 
 	function parseTable(string) {
 		const lines = string.split('\n').map(_=>_.replace(/^\s*(?:\*\s*)?|\s*$/g, '')).filter(_=>_);
-		const table = { }; for (const line of lines) {
-			const match = (/^([\w-]+)(?:(?:\s*:)?\s+(\S.*))?$/).exec(line); if (!match) { continue; }
-			const [ , key, value, ] = match; table[key] = value;
+		let last; const table = { }; for (const line of lines) {
+			const match = (/^(?:([\w-]+):?\s+(?=\S)|\|)(.+)$/).exec(line); if (!match) { continue; }
+			const [ , key, value, ] = match; if (!key) {
+				last && (table[last] += '\n'+ value);
+			} else { table[key] = value; last = key; }
 		} return table;
 	}
 

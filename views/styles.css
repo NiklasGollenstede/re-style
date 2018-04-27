@@ -102,9 +102,11 @@
 	resize: vertical; border-color: white;
 	min-width: calc(100vw - 50px); min-height: 30vh;
 }
-.pref-name-include .input-row>*,
-.pref-name-options .input-row>* {
-	display: inline-block;
+.pref-name-include .input-row,
+.pref-name-options .input-row,
+.pref-name-include .inputs-wrapper,
+.pref-name-options .inputs-wrapper {
+	width: 100%;
 }
 .pref-name-include .pref-children,
 .pref-name-options .pref-children {
@@ -128,7 +130,11 @@
 	margin: 5px 0;
 }
 .pref-name-include input[type="text"] {
-	max-width: 250px;
+	max-width: 250px !important;
+}
+.pref-name-options textarea {
+	resize: vertical; border-color: white;
+	min-height: 5.5em;
 }
 .remove-value-entry,
 .add-value-entry {
