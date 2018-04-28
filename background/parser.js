@@ -204,6 +204,7 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 			option.default = option.unit && value.endsWith(option.unit)
 			? value.slice(0, -option.unit.length) : value;
 			option.restrict && option.restrict.type === 'number' && (option.default -= 0);
+			option.type === 'boolInt' && (option['on' in option ? 'off' : 'on'] = value);
 		} else { option.name = null; } });
 		meta.options = meta.options.filter(_=>_.name);
 	}
@@ -452,10 +453,9 @@ function parseMetaBlock(block, onerror) {
 					case 'color': /* nothing to do */ break;
 					case 'bool': option.type = 'boolean'; /* falls through */
 					case 'boolean': {
-						if (!('on' in props) || !('off' in props)) { console.error(`ignoring boolean @option rule without 'on' and 'off' values`, entry); break; }
-						option.type = 'boolInt'; option.on = props.on; option.off = props.off;
+						if (!('on' in props) && !('off' in props)) { console.error(`ignoring boolean @option rule without either 'on' or 'off' values`, entry); break; }
+						option.type = 'boolInt'; ('on' in props) ? (option.on = props.on) : (option.off = props.off);
 						option.description = undefined; option.suffix = description;
-						option.restrict = { type: 'string', match: RegExpX`^${[ props.on, props.off, ]}$`, };
 					} break;
 					case 'integer': case 'number': {
 						option.restrict = { type: 'number', match: type === 'integer' && { exp: (/^-?\d+$/), message: 'This value must be an integer', }, };

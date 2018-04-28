@@ -3,11 +3,6 @@
  * tips
  */
 
-#local #\.controls .inputs-wrapper::after {
-	content: 'untill restarted';
-	padding-right: 10px;
-}
-
 *:not(:empty) + .if-empty {
 	display: none;
 }
@@ -22,8 +17,11 @@
 }
 .options-host.disabled input[data-id="disable"],
 .options-host:not(.disabled) input[data-id="enable"],
-#local input[data-id="update"],
-#local input[data-id="remove"],
+#remote .pref-name-controls input[data-id="edit"],
+#remote .pref-name-controls input[data-id="show"],
+#remote .pref-name-controls .input-wrapper:last-child .value-suffix, /* until restarted notice */
+#local .pref-name-controls input[data-id="update"],
+#local .pref-name-controls input[data-id="remove"],
 #local .pref-name-edit,
 .pref-name-include.empty,
 .pref-name-options.empty

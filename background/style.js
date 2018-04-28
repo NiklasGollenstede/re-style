@@ -163,10 +163,13 @@ class _Style {
 				hidden: true,
 			},
 			controls: { default: true, input: [
+				{ type: 'control', id: 'update',   label: 'Update', },
+				{ type: 'control', id: 'edit',     label: 'Edit', },
+				{ type: 'control', id: 'show',     label: 'Show', },
 				{ type: 'control', id: 'enable',   label: 'Enable', },
 				{ type: 'control', id: 'disable',  label: 'Disable', },
-				{ type: 'control', id: 'update',   label: 'Update', },
 				{ type: 'control', id: 'remove',   label: 'Remove', },
+				{ type: 'hidden', suffix: `<span title="Only disables until the next restart, see below.">🛈</span>`, },
 			], },
 			edit: {
 				title: 'Edit',

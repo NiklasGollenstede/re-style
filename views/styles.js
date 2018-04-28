@@ -1,5 +1,5 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { manifest, },
+	'node_modules/web-ext-utils/browser/': { rootUrl, manifest, Tabs, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
 	'node_modules/es6lib/dom': { createElement, },
@@ -78,6 +78,7 @@ function createRow(style) {
 }
 
 async function onCommand(style, _, action) { try { switch (action) {
+	case 'edit':     (await style.show()); break;
 	case 'enable':   style.disabled = false; break;
 	case 'disable':  style.disabled = true; break;
 	case 'update':   (await style.update()); break;
@@ -94,6 +95,35 @@ async function onCommand(style, _, action) { try { switch (action) {
 		reportSuccess(`Created local Style at`, path);
 		LocalStyle.openStyle(name).catch(e => console.error(e));
 	} break;
+	case 'show': {
+		(await Tabs.create({ url: window.URL.createObjectURL(new Blob([
+HtmlTemplate`<!DOCTYPE html>
+<html><head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<link rel="icon" href="${rootUrl}icon.svg"><style>
+		:root { background: #242a31; filter: invert(1) hue-rotate(180deg); font-family: Segoe UI, Tahoma, sans-serif; }
+		pre>code:empty::after { content: '<none>'; }
+	</style>
+</head><body>
+	<h2>${style.url}</h2>
+	<p>Fully processed style as currently applied:</p>
+	<h3>Metadata</h3>
+	<pre><code>${ JSON.stringify(style.sheet.meta, (key, value) => key === 'restrict' ? undefined : value, '\t') }</pre></code>
+	<h3>Webpage</h3>
+	<pre><code>${ style.web ? style.web.code : '' }</pre></code>
+	<h3>userContent.css</h3>
+	<pre><code>${ style.chrome && style.chrome.content ? style.chrome.content : '' }</pre></code>
+	<h3>userChrome.css</h3>
+	<pre><code>${ style.chrome && style.chrome.chrome ? style.chrome.chrome : '' }</pre></code>
+</body></html>`,
+		], { type: 'text/html; charset=utf-8', })), }));
+	} break;
 } } catch (error) { reportError(error); } }
+
+function HtmlTemplate() {
+	for (let i = 1; i < arguments.length; i++) {
+		arguments[i] = arguments[i].replace(/[&<>'"/]/g, c => entities[c]);
+	} return String.raw.apply(String, arguments);
+} const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;', '/': '&#47;', };
 
 }); })(this);
