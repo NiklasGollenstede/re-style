@@ -6,11 +6,12 @@
 	'background/remote/': RemoteStyle,
 	'background/remote/map-url': mapUrl,
 	'common/options': options,
-	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': css,
+	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorIndexCss,
 }) => ({ document, prompt, }) => {
 
 document.title = 'Options - '+ manifest.name;
-document.head.appendChild(createElement('style', [ css, ]));
+document.head.appendChild(createElement('style', [ editorIndexCss, ]));
+document.head.appendChild(document.querySelector('style')); // editor/dark.css
 document.head.appendChild(createElement('style', [ String.raw`
 body { margin: 15px; }
 textarea {
@@ -20,7 +21,6 @@ textarea {
 	display: inline; border: none; padding: 0; margin: 0;
 }
 .pref-name-autoUpdate input { max-width: 4em; }
-#\.remote>.reset-values { display: none; }
 `, ]));
 
 new Editor({

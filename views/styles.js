@@ -7,7 +7,7 @@
 	'background/remote/': RemoteStyle,
 	'background/style': Style,
 	'fetch!./styles.css:css': css,
-	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorCss,
+	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorIndexCss,
 }) => async window => { const { document, } = window;
 
 const Sections = {
@@ -26,7 +26,8 @@ const Sections = {
 	},
 };
 
-document.head.appendChild(createElement('style', [ editorCss, ]));
+document.head.appendChild(createElement('style', [ editorIndexCss, ]));
+document.head.appendChild(document.querySelector('style')); // editor/dark.css
 document.head.appendChild(createElement('style', [ css, ]));
 
 for (const [ name, { Type, title, before, empty, after, }, ] of Object.entries(Sections)) {

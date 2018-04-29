@@ -11,7 +11,7 @@ let debug; options.debug.whenChange(([ value, ]) => { debug = value; });
 class ContentStyle {
 	constructor(url, code) {
 		this.url = url;
-		// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'` ( see https://www.fxsitecompat.com/en-CA/docs/2018/moz-document-support-has-been-dropped-except-for-empty-url-prefix/)
+		// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'` (see https://bugzilla.mozilla.org/show_bug.cgi?id=1035091)
 		// so, as with `ChromeStyle`s, '!important' has to be added to every rule
 		this.code = code.toString({ minify: false, important: true, namespace: true, })
 		+ `\n/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
@@ -34,6 +34,26 @@ class ContentStyle {
 }
 
 //// start implementation
+
+/**
+ * TODO:
+ * It would probably be much more efficient to use `browser.contentScripts.register()`.
+ * (And then maybe even use one contentScript for multiple Styles.)
+ * See: https://developer.mozilla.org/en-US/Add-ons/WebExtensions/API/contentScripts/register
+ *
+ * Currently, there are two blocking problems:
+ *  1.) `script.remove()` does not remove the CSS from loaded tabs.
+ *      Patches are welcome: https://bugzilla.mozilla.org/show_bug.cgi?id=1423323
+ *  2.) There is no way to specify the `cssOrigin`, so `@-moz-document` rules won't work (https://bugzilla.mozilla.org/show_bug.cgi?id=1035091).
+ *      I see two possible solutions:
+ *       * Request a `cssOrigin` property either on the `contentScriptOptions` or each entry in its `.css`.
+ *       * Use the content scripts `.matches` option to include it only on the desired domains in the first place.
+ *         This should again be faster than injecting it everywhere and then filtering through `@document` blocks,
+ *         but `.matches` only supports match patterns. They can emulate `url()`, `domain()`, and `url-prefix()`,
+ *         but not `regexp()` includes, which again leaves two options:
+ *          * Use `.register({ matches: [ ..., ], })` where possible, and the current implementation for `regexp()`.
+ *          * Request RegExps in `.matches`.
+ */
 
 // TODO: handle pages that re-appear from the BF-cache
 

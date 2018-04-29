@@ -13,38 +13,52 @@
 }) => async (window, location) => {
 const { document, } = window;
 
-document.body.innerHTML = `
+document.body.innerHTML = `<style>
+	:root { font-family: Segoe UI, Tahoma, sans-serif; overflow: hidden; }
+	:root, body { background: #424f5a; } body>* { filter: invert(1) hue-rotate(180deg); }
+	:root { box-sizing: border-box; } * { box-sizing: inherit; }
+	:root { width: 350px; margin-bottom: -1px; } body { width: 333px; margin: 0; }
+	:root { user-select: none; -moz-user-select: none; }
+</style><div id=main>
 	<style>
-		:root { font-family: Segoe UI, Tahoma, sans-serif; overflow: hidden; }
-		:root, body { background: #424F5A; } body>* { filter: invert(1) hue-rotate(180deg); }
-		:root { box-sizing: border-box; } * { box-sizing: inherit; }
-		:root { width: 350px; margin-bottom: -1px; } body { width: 333px; margin 8px; }
-		#restart { background: #F49F00; padding: 5px; position:fixed;top:0;left:0;right:0; } code { font-size: 120%; }
-		#all { position: absolute; z-index: 1; top: 11px; right: 9px; }
-		h3 { margin: 0; cursor: default; } #styles { margin-bottom: 10px; max-height: 250px; overflow-y: auto; }
-		#styles:empty::after { content: '<none>'; opacity: .5; }
-		#styles label + b { cursor: pointer; }
-		.includes { margin-left: 30px; } .includes input { margin-left: 6px; }
-		textarea { width: 100%; resize: vertical; max-height: 8.2em; min-height: 3.5em; overflow-y: scroll; word-break: break-all; }
-		#create { float: right; }
+		#main { position: relative; padding: 8px; background: #a7b4bf; }
+		#main #all { position: absolute; z-index: 1; top: 11px; right: 9px; }
+		#main h3 { margin: 0; cursor: default; }
+		#main #styles { margin-bottom: 10px; max-height: 250px; overflow-y: auto; }
+		#main #styles:empty::after { content: '<none>'; opacity: .5; }
+		#main #styles label { user-select: text; -moz-user-select: text; }
+		#main #styles label + b { cursor: pointer; }
+		#main .includes { margin-left: 30px; } .includes input { margin-left: 6px; }
+		#main textarea { width: 100%; resize: vertical; max-height: 8.2em; min-height: 3.5em; overflow-y: scroll; word-break: break-all; }
+		#main #create { float: right; }
+		/* #main::before {
+			background: no-repeat center/contain url(/icon.svg); margin: 20px; opacity: .3;
+			content: ''; z-index: -1; position:fixed;top:0;left:0;bottom:0;right:0;
+			filter: invert(1) hue-rotate(180deg);
+		} */
 	</style>
-	<button id="all">All Styles</button>
+	<button id=all>All Styles</button>
 	<h3>Active styles</h3>
-	<div id="styles"></div>
-	<select id="addTo"><option></option></select>
+	<div id=styles></div>
+	<select id=addTo><option></option></select>
 	<h3>Install style</h3>
-	<textarea id="url" type="text" placeholder="URL to .css file"></textarea><br>
-	<button id="add">Add style</button><button id="create">Create new style</button>
-`;
+	<textarea id=url type=text placeholder="URL to .css file"></textarea><br>
+	<button id=add>Add style</button><button id=create>Create new style</button>
+</div>`;
 const tab = location.activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(location.activeTab)) : (await Tabs.query({ currentWindow: true, active: true, }))[0];
 const url = new global.URL(tab.url);
 
 
 /// restart notice
-if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div id="restart">
+if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div id=restart>
+	<style>
+		#restart { background: #f49f00; padding: 8px; }
+		#restart code { font-size: 120%; }
+		:root>body { background: #a75300; } /* for the arrow-thing*/
+	</style>
 	The UI styles have changed. The browser has to be restarted to apply the changes.<br>
 	You can do that e.g. by prssting <code>Shift</code>+<code>F2</code> and typing <code>restart</code> (then <code>Enter</code>).
-</div><style> body { margin-top: 105px; } #all { transform: translateY(97px); } </style>`); }
+</div>`); }
 
 
 /// all styles button
