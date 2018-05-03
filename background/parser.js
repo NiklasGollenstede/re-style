@@ -488,6 +488,7 @@ function parseMetaBlock(block, onerror) {
 	} catch (error) { onerror(error); } } return meta;
 
 	function parseTable(string) {
+		// TODO: strip /^\ ?\*?\ ?/gm and parse as YAML (https://github.com/jeremyfa/yaml.js)
 		const lines = string.split('\n').map(_=>_.replace(/^\s*(?:\*\s*)?|\s*$/g, '')).filter(_=>_);
 		let last; const table = { }; for (const line of lines) {
 			const match = (/^(?:([\w-]+):?\s+(?=\S)|\|)(.+)$/).exec(line); if (!match) { continue; }

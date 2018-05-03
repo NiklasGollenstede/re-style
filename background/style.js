@@ -316,13 +316,17 @@ class _Style {
 		const applyIncludes = () => {
 			sections.forEach(section => {
 				const web = webContent.find(_=>_.tokens === section.tokens) || section.cloneWithoutIncludes();
-				web.dynamic.splice(0, Infinity);
+				const had = web.dynamic.splice(0, Infinity).length;
 				section.regexps.forEach(source => {
 					const custom = dynamicIncludes.find(_=>_.name === source);
 					if (!custom || !custom.values.current.length) { return; }
 					web.dynamic.push(toRegExp.domains(custom.values.current).source);
 					!webContent.includes(web) && webContent.push(web);
 				});
+				had // if it is not the section
+				&& !web.dynamic.length // and all includes were removed
+				&& !(web.urls.length + web.urlPrefixes.length + web.domains.length + web.regexps.length)
+				&& webContent.splice(webContent.indexOf(web), 1);
 			});
 		}; dynamicIncludes.length && applyIncludes();
 
