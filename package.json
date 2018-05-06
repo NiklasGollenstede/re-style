@@ -20,8 +20,8 @@
 		"es6lib": "0.0.2",
 		"native-ext": "0.2.3",
 		"regexpx": "0.1.4",
-		"web-ext-build": "0.0.8",
-		"web-ext-utils": "0.0.18"
+		"web-ext-build": "0.0.9",
+		"web-ext-utils": "0.0.20"
 	},
 	"devDependencies": {
 		"babel-eslint": "8.2.2",

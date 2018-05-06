@@ -9,7 +9,7 @@
  *                                    The first `Section` has no include rules and contains all global code.
  * @property  {namespace}  namespace  The sheets default namespace as it appeared in the code.
  * @property  {object}     meta       File metadata parsed from the `==UserStyle==` comment block.
- *                                    Tries to is infer at least the `.meta.name` otherwise if no metadata block is found.
+ *                                    Tries to is infer at least the `.meta.name` if no metadata block is found.
  */
 class Sheet {
 
@@ -23,18 +23,14 @@ class Sheet {
 	static fromCode(code, options) { return Sheet_fromCode(code, options); }
 
 	/**
-	 * Transforms `userstyles.orgs` JSON sheets into a `Sheet`.
-	 * @see  `Section.fromUserstylesOrg`.
-	 * @param  {object}  json  Parsed JSON object returned by `userstyles.orgs` API.
-	 * @return {Sheet}         A `Sheet` with `Sections` complying with this API description.
+	 * Transforms `userstyles.orgs` JSON sheets into plain CSS code.
+	 * @param  {string}  json  JSON response from `userstyles.orgs` API.
+	 * @return {string}        Converted CSS code.
 	 */
-	static fromUserstylesOrg({ name, sections, namespace = '', }) {
-		return new Sheet({ name, }, sections.map(Section.fromUserstylesOrg), namespace);
-	}
+	static json2css(json) { return json2css(json); }
 
 	/// creates a sheet from its components
 	constructor(meta, sections, namespace) {
-		!meta.name && sections.length && (meta.name = (sections[0].domains || sections[0].urlPrefixes || sections[0].urls)[0]);
 		this.meta = meta; this.sections = sections; this.namespace = namespace;
 	}
 
@@ -85,14 +81,6 @@ class Sheet {
  */
 class Section {
 
-	/**
-	 * Transforms a `.section` entry of a `userstyles.orgs` JSON sheets into a `Section`.
-	 * @see  `Section.Section.fromUserstylesOrg`.
-	 * @param  {object}    json  `.section` entry of a parsed JSON object returned by `userstyles.orgs` API.
-	 * @return {Section}         A `Section` with `Sections` complying with this API description.
-	 */
-	static fromUserstylesOrg(json) { return Section_fromUserstylesOrg(json); }
-
 	/// Constructs a `Sheet` from its components.
 	constructor(urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ], tokens = [ ], location = null) {
 		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
@@ -138,7 +126,7 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 		while (lastIndex < index) { lastLoc += tokens[lastIndex++].length; } return lastLoc;
 	}
 
-	const tokens = tokenize(css); let namespace = '';
+	const tokens = tokenize(css || ''); let namespace = '';
 	const globalTokens = [ ], sections = [ new Section([ ], [ ], [ ], [ ], globalTokens), ];
 
 	loop: for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
@@ -192,11 +180,14 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 		(/^\/\*\**\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
 	); if (metaBlock) {
 		Object.assign(meta, parseMetaBlock(metaBlock, onerror));
-	} else { globalTokens.some(token => {
-		if (!(/^\/\*/).test(token)) { return; }
-		const match = (/^(?:\ ?\*\ ?@(?:name|title)[\ \t]+|\ ?\*\ (?:name|title)[\ \t]*:[\ \t]*)(.*)/mi).exec(token);
-		match && (meta.name = match[1]);
-	}); }
+	} else {
+		const where = globalTokens.concat(sections[1] ? sections[1].tokens.slice(0, 25 - globalTokens.length) : [ ]);
+		rsFuzzyTitle.some(exp => where.some(token => {
+			if (!(/^\/\*/).test(token)) { return null; }
+			const match = exp.exec(token);
+			return match && (meta.name = match[1].replace(/ \(?$/, ''));
+		}));
+	}
 	if (meta.options) {
 		const defaults = self.getOptions();
 		meta.options.forEach(option => { if (option.name in defaults) {
@@ -212,14 +203,39 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 	return self;
 }
 
-// TODO: ditch this and just convert the objects to strings, then re-parse
-function Section_fromUserstylesOrg({ urls, urlPrefixes, domains, regexps, code, }) {
-	// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
-	// but e.g. to compare them against actual URLs, their escapes need to be evaluated
-	urls = urls.map(evalString); urlPrefixes = urlPrefixes.map(evalString);
-	domains = domains.map(evalString); regexps = regexps.map(evalString);
+const rsFuzzyTitle = [
+	RegExpX('mi')`^  # in any line
+		[\ \t]*?\*[\ \t]* (?:  # indention
+			  (?:@ \s*)? (?:name|title) (?: [\ \t]* : [\ \t]* | \ {5,} )
+			| (?:@ \s*)  (?:name|title) [\ \t]+
+		) (.*)
+	`,
+	RegExpX`^\/\*   # at comment start
+		(?:\*{10,}|!)       # comment block or preservable comment
+		\s*(?:\*\s*)?       # whitespaces, may wrap to next line
+		(\w (?: . (?! \(?   # the entire line, but don't include
+			  \ v\d[\d\.]{2}     # version numbers
+			| [\d\.\/-]          # or dates
+		\)? ) )* \S )
+		.* (?:\n|\*\/$)  # end of line or comment
+	`,
+	RegExpX`^\/\*   # at comment start
+		\s* ( \w{3} [\ \w] \w{2} (?: [\w! .+~|–-] (?! \(?   # just something sufficiently wordish, but don't include
+			  \ v\d[\d\.]{2}     # version numbers
+			| [\d\.\/-]          # or dates
+		\)? ) )* )
+	`,
+];
 
-	return new Section(urls, urlPrefixes, domains, regexps, tokenize(code));
+function json2css(json) {
+	return JSON.parse(json).sections.map(({ urls, urlPrefixes, domains, regexps, code, }) => {
+		// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
+		// but e.g. to compare them against actual URLs, their escapes need to be evaluated
+		urls = urls.map(evalString); urlPrefixes = urlPrefixes.map(evalString);
+		domains = domains.map(evalString); regexps = regexps.map(evalString);
+
+		return Section_toString.call({ urls, urlPrefixes, domains, regexps, dynamic: [ ], tokens: [ code, ], });
+	}).join('\n\n');
 }
 
 function Section_toString({ minify = false, important = false, } = { }) {
@@ -299,12 +315,12 @@ const rTokens = RegExpX('gns')`
 	  @namespace\b
 	| @(-moz-)?document\b
 	| ${rUrlRule}
-	| [{}();] # TODO: these would also be matched by 'others' below
+	| [\[\]{}();:] # these would also be matched by 'others' below, but let's be explicit
 	| \/\* .*? ( \*\/ | $ ) # comments
 	| ' ${rNonEscape} ' | " ${rNonEscape} " # strings
 	| !important\b
 	| \s+ # whitespaces
-	| [\w-]+ # words
+	| [\w.,<>*-]+ # words
 	| . # others
 `;
 

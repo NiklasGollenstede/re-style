@@ -23,7 +23,7 @@
 .options-host.disabled input[data-id="disable"],
 .options-host:not(.disabled) input[data-id="enable"],
 #remote .pref-name-controls input[data-id="edit"],
-#remote .pref-name-controls input[data-id="show"],
+#remote .pref-name-controls input[data-id="info"],
 #remote .pref-name-controls .input-wrapper:last-child .value-suffix, /* until restarted notice */
 #local .pref-name-controls input[data-id="update"],
 #local .pref-name-controls input[data-id="remove"],

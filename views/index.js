@@ -9,23 +9,34 @@ return new Home({
 	tabs: [ {
 		id: 'styles',
 		title: 'Styles',
-		icon: getURL('icon.svg'),
+		icon: createElement('div', { style: {
+			backgroundSize: '80%', height: '100%',
+			backgroundImage: `url(${ getURL('icon.svg') })`,
+		}, }),
 	}, {
 		id: 'setup',
 		title: 'Setup',
-		icon: new global.Text('❓'),
+		icon: createElement('div', { style: {
+			position: 'relative', fontSize: '130%', top: '-6px',
+		}, }, [ '❔', ]),
 	}, {
 		id: 'options',
 		title: 'Options',
-		icon: new global.Text('⚙'),
+		icon: createElement('div', { style: {
+			position: 'relative', fontSize: '180%', top: '-6px',
+		}, }, [ '⚙', ]),
 	}, {
 		id: 'about',
 		title: 'About',
-		icon: new global.Text('🛈'),
+		icon: createElement('div', { style: {
+			position: 'relative', fontSize: '150%', top: '-5px',
+		}, }, [ '🛈', ]),
 	}, {
 		id: '404',
 		title: 'Error',
-		icon: new global.Text('⚡'),
+		icon: createElement('div', { style: {
+			position: 'relative', fontSize: '100%', top: '-3px',
+		}, }, [ '⚡', ]),
 		hidden: true, default: true, unload: true,
 	}, ],
 	index: 'styles',

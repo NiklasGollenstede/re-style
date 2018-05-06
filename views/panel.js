@@ -62,9 +62,11 @@ if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div 
 
 
 /// all styles button
-document.querySelector('#all').addEventListener('click', _=>!_.button
-	&& openView('styles', null, { useExisting: _=>_ !== location, }).then(() => location.view.close())
-);
+document.querySelector('#all').addEventListener('click', _=> { if (!_.button) {
+	// BUG[FF60]: closing the panel brings the (old) window to the front without focusing it,
+	// so the focusing an existing view in a different window and then closing the panel does not work
+	location.view.close(); setTimeout(() => openView('styles', null, { useExisting: _=>_ !== location, }), 50);
+} });
 
 
 /// add style input

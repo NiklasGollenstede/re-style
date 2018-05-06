@@ -22,20 +22,19 @@ class Style {
 	constructor(url, code) { return new _Style(this, url, code); }
 
 	/**
-	 * Sets the code content of the style sheet. The code will be parsed (see `Sheet`) and
-	 * its `Section`s are applied as a `WebStyle` and/or `ChromeStyle`.
-	 * @param {string|object?}  code  CSS source code. Should contain `@document` sections.
-	 *                                Can also be set as a JSON object returned by userstyles.org.
-	 *                                Setting the Sheet to `null` will remove it from the browser.
-	 * @return {boolean}              Whether the Sheet actually re-applied, which also fires `onCahnged`.
+	 * Sets the code content of the style sheet. The code will be parsed (see `Sheet`)
+	 * and its `Section`s are applied as a `Web`- and/or `ChromeStyle`.
+	 * @param  {string}  code  CSS source code. Should contain `@document` sections.
+	 *                         Setting the Sheet to `''` will effectively disable the `Style`.
+	 * @return {boolean}       Whether the Sheet was actually changed, which also fires `onCahnged`.
 	 */
-	async setSheet(code) { return Self.get(this).setSheet(code); }
+	async setSheet(code) { return Self.get(this).setSheet(code || ''); }
 
 	/**
 	 * Forcefully re-applies the current Sheet,
 	 * e.g. to replace old cached `.chrome` and `.web` properties.
 	 */
-	reload() { const self = Self.get(this); !self.disabled && self.enable(); }
+	reload() { const self = Self.get(this); !self.disabled && self.update(); }
 
 	/// The `url` constructor parameter.
 	get url() { return Self.get(this).url; }
@@ -44,31 +43,29 @@ class Style {
 	/// String-representation of the current `.sheet`, before any processing.
 	get code() { return Self.get(this).code; }
 	/// `Sheet` as a result of `.setSheet()`.
-	get sheet() { return Self.get(this).sheet; }
+	get sheet() { console.warn('deprecated'); return Self.get(this)._sheet; }
 	/// `ChromeStyle` if `.sheet` has sections that require one.
 	get chrome() { return Self.get(this).chrome; }
 	/// `WebStyle` if `.sheet` has sections that require one.
 	get web() { return Self.get(this).web; }
+	/// Parsed metadata as frozen JSON object
+	get meta() { return Self.get(this).meta; }
 
 	/// Gets/sets the disabled state. Disabled Styles don't have .`chrome` and `.web`
 	/// and thus won't affect the browser UI or websites.
 	get disabled() { return Self.get(this).disabled; }
-	set disabled(value) {
-		const self = Self.get(this);
-		if (!!value === self.disabled) { return; }
-		self.disabled ? self.enable() : self.disable();
-	}
+	set disabled(value) { value ? Self.get(this).disable() : Self.get(this).enable(); }
 
 	/// Style specific options (TODO: document)
 	get options() { return Self.get(this).options.children; }
 
-	/// Returns `true` iff any of the `.sheet`s sections would match `url`.
+	/// Returns `true` iff any of the `.sheet`s sections would match `url`. Ignores global code.
 	matches(url) { return Self.get(this).include.some(_=>_.test(url)); }
 
-	/// Returns a JSON object stat can be stored and later passed to `this.constructor.fromJSON`.
+	/// Returns a JSON object that can be stored and later passed to `this.constructor.fromJSON`.
 	toJSON() { return Self.get(this).toJSON(); }
 
-	/// Efficiently restores a Style from its JSON representation. Should be called on a deriving class.
+	/// Efficiently restores a Style from its JSON representation. Should be called on a deriving classes constructor.
 	static fromJSON() { return _Style.fromJSON.apply(this, arguments); }
 
 	/// Retrieves a `Style` instance by its `.id`.
@@ -129,24 +126,29 @@ const parent = new WeakMap;
 class _Style {
 	constructor(self, url, code) { return (async () => {
 		Self.set(this.public = self, this);
-		this.url = this.id = this.code = this.name = '';
+		self._ = this; // only for debugging
+
+		// persisted properties
+		this.url = this.id = this.code = this.name = ''; this.meta = null;
 		this.options = null; this.include = [ ];
-		this.sheet = null; this.disabled = false;
-		this.chrome = this.web = null;
+		this.disabled = false; this.chrome = this.web = null;
 
-		this.name = url.split(/[\/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
-		this.url = url; this.id = (await Style.url2id(url));
-		if (styles.has(this.id)) { throw new Error(`Duplicate Style id`); } styles.set(this.id, self);
-		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
+		// cached stuff that does not need to be restored from JSON
+		this._sheet = this._chrome = this._content = this._web = null;
+		this.fireChanged = null; // set by setEventGetter
 
-		code && (await this.setSheet(code));
-		return self;
+		const name = this.name = url.split(/[\/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
+		this.meta = Object.freeze({ name, }); this.url = url;
+		const id = this.id = (await Style.url2id(url));
+		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
+
+		this.initOptions(); code && (await this.setSheet(code)); return self;
 	})(); }
 
-	getOptionsModel() {
+	initOptions() {
 		const name = [ 0, ]; Object.defineProperty(name, '0', { get: () => this.name, enumerable: true, });
 		const code = [ 0, ]; Object.defineProperty(code, '0', { get: () => this.code, enumerable: true, });
-		return {
+		const model = {
 			id: {
 				description: this.url,
 				default: this.id,
@@ -165,7 +167,7 @@ class _Style {
 			controls: { default: true, input: [
 				{ type: 'control', id: 'update',   label: 'Update', },
 				{ type: 'control', id: 'edit',     label: 'Edit', },
-				{ type: 'control', id: 'show',     label: 'Show', },
+				{ type: 'control', id: 'info',     label: 'Info', },
 				{ type: 'control', id: 'enable',   label: 'Enable', },
 				{ type: 'control', id: 'disable',  label: 'Disable', },
 				{ type: 'control', id: 'remove',   label: 'Remove', },
@@ -201,48 +203,66 @@ class _Style {
 				children: 'dynamic',
 			},
 		};
+		this.options = new Options({ model, prefix: 'style.'+ this.id, storage, });
 	}
 
 	async setSheet(code) {
-		if (!code) {
+		if (!code) { { // effectively disables the style
 			if (!this.code) { return false; }
-			this.chrome && this.chrome.destroy(); this.chrome = null;
-			this.web && this.web.destroy(); this.web = null;
 			this.code = ''; this.include.splice(0, Infinity);
-			this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
-			return true;
-		}
-		if (typeof code === 'string') {
-			if (code === this.code) { return false; } this.code = code;
-			this.sheet = Sheet.fromCode(code); // lazy
-		} else {
-			const sheet = Sheet.fromUserstylesOrg(code); code = sheet.toString();
-			if (code === this.code) { return false; } this.code = code;
-			this.sheet = sheet;
-		}
+			if (this.disabled) { return true; }
+			this.disabled = false; this.disable(true); this.disabled = false;
+			this._fireChanged();
+		} return true; }
 
-		const include = [ ]; this.sheet.sections.forEach(section =>
+		if (code === this.code) { return false; }
+		this.code = code; this._sheet = null;
+
+		this.update(); return true;
+	}
+
+	// applies the `._sheet?` to the UI and browser
+	update() {
+		if (this.disabled) { this.parseIncludes(); this._fireChanged(); return; }
+		const sheet = this._sheet = this._sheet || Sheet.fromCode(this.code);
+		this.updateName(); this.meta = deepFreeze(sheet.meta);
+		this.parseIncludes(); this.parseSections();
+		const { dynamicIncludes, dynamicOptions, } = this.rebuildOptions();
+		dynamicIncludes.length && this.applyIncludes();
+		dynamicOptions.length && this.applyOptions();
+		this.applyStyle();
+	}
+
+	// gets `.name` from `._sheet.meta` or a `._sheet.sections` include rule
+	updateName() {
+		const { _sheet: { meta, sections, }, } = this;
+		if (!meta.name) { meta.name = (/^\d*$/).test(this.name) && sections.length >= 1 ? (
+			(sections[1].domains || sections[1].urlPrefixes || sections[1].urls)[0] || this.name
+		) : this.name; }
+
+		if (meta.name !== this.name) {
+			this.name = meta.name;
+			if (!this.options.children.name.values.isSet) { // update UI
+				this.options.children.name.value = ''; this.options.children.name.reset();
+			}
+		}
+	}
+
+	// refreshes `.includes` from `._sheet?`
+	parseIncludes() {
+		const { sections, } = this._sheet = this._sheet || Sheet.fromCode(this.code);
+		const include = [ ]; sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
 				section[type].length && include.push(toRegExp[type](section[type]));
 			} catch(error) { console.error(`Failed to parse ${type} pattern(s) in ${this.url}`, error); } })
 		);
 		this.include.splice(0, Infinity, ...include);
-
-		if (this.disabled) {
-			this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
-		} else {
-			this.enable(); // also fires changed
-		}
-		return true;
 	}
 
-	// this function is called (only) when a style is being installed, updated or re-enabled
-	enable() {
-		this.disabled = false;
-
-		// parse and analyze sheet
-		const sheet = this.sheet = this.sheet || Sheet.fromCode(this.code);
-		const { sections, namespace, meta, } = sheet, userChrome = [ ], userContent = [ ], webContent = [ ];
+	// refreshes `._chrome`, `._content` and `._web` from `._sheet?`
+	parseSections() {
+		const { sections, namespace, } = this._sheet = this._sheet || Sheet.fromCode(this.code);
+		const userChrome = this._chrome = [ ]; const userContent = this._content = [ ]; const webContent = this._web = [ ];
 		sections.forEach(section => {
 			const { urls, urlPrefixes, domains, regexps, } = section;
 
@@ -283,8 +303,11 @@ class _Style {
 			content.urls.length + content.urlPrefixes.length + content.domains.length + content.regexps.length > 0 && userContent.push(content);
 			web.urls.length     + web.urlPrefixes.length     + web.domains.length     + web.regexps.length     > 0 && webContent.push(web);
 		});
+	}
 
-		// build dynamic includes and options UI
+	// (re-)builds `.options.children[includes|options].children` settings branches from `this.meta`
+	rebuildOptions() {
+		const { meta, } = this;
 		const styleOptions = (branch, model, onChange) => {
 			const dynamic = this.options.children[branch].children;
 			const rules = meta[branch]; if (dynamic.rules === rules) { return dynamic; } dynamic.rules = rules;
@@ -296,76 +319,85 @@ class _Style {
 					...model(rule, rules),
 				}, ], prefix: 'style.'+ this.id +'.'+ branch, storage, });
 				const option = root.children[0]; parent.set(option, root);
-				option.onChange(onChange);
+				option.onChange(() => {
+					!this._sheet && this.parseSections(); // restored from JSON
+					this[onChange](); this.applyStyle();
+				});
 				return root.children[0];
 			}))
 			.forEach(old => parent.get(old).destroy());
 			return dynamic;
 		};
+
 		const dynamicIncludes = styleOptions('include', () => ({
 			maxLength: Infinity,
 			restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, unique: '.', },
 			input: { type: 'string', default: 'example.com', },
-		}), () => { applyIncludes(); apply(); });
+		}), 'applyIncludes');
 		const dynamicOptions = styleOptions('options',
 			({ name: _1, title: _2, description: _3, unit = '', restrict, ...input }) => ({ unit, restrict, input, }),
-			() => { applyOptions(); apply(); }
+			'applyOptions'
 		);
-
-
-		const applyIncludes = () => {
-			sections.forEach(section => {
-				const web = webContent.find(_=>_.tokens === section.tokens) || section.cloneWithoutIncludes();
-				const had = web.dynamic.splice(0, Infinity).length;
-				section.regexps.forEach(source => {
-					const custom = dynamicIncludes.find(_=>_.name === source);
-					if (!custom || !custom.values.current.length) { return; }
-					web.dynamic.push(toRegExp.domains(custom.values.current).source);
-					!webContent.includes(web) && webContent.push(web);
-				});
-				had // if it is not the section
-				&& !web.dynamic.length // and all includes were removed
-				&& !(web.urls.length + web.urlPrefixes.length + web.domains.length + web.regexps.length)
-				&& webContent.splice(webContent.indexOf(web), 1);
-			});
-		}; dynamicIncludes.length && applyIncludes();
-
-
-		const applyOptions = () => {
-			const prefs = { }; dynamicOptions.forEach(
-				({ name, value, model: { unit, }, }) => (prefs[name] = value + unit)
-			);
-			sections.forEach(_=>_.setOptions(prefs));
-		}; dynamicOptions.length && applyOptions();
-
-
-		const apply = () => {
-			const chrome = !userChrome.length && !userContent.length ? null
-			: new ChromeStyle(this.url,
-				userChrome.length  ? sheet.cloneWithSections(userChrome)  : null,
-				userContent.length ? sheet.cloneWithSections(userContent) : null,
-			); this.chrome && this.chrome.destroy(); this.chrome = chrome;
-
-			const web = !webContent.length ? null
-			: new WebStyle(this.url, sheet.cloneWithSections(webContent));
-			this.web && this.web.destroy(); this.web = web;
-
-			if (meta.name && meta.name !== this.name) {
-				this.name = meta.name;
-				if (!this.options.children.name.values.isSet) {
-					this.options.children.name.value = ''; this.options.children.name.reset();
-				}
-			}
-
-			this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
-		}; apply();
+		return { dynamicIncludes, dynamicOptions, };
 	}
 
+	// applies the `.options.children.options.children` settings branch to `._sheet.sections` and `._web`
+	applyIncludes() {
+		const { _sheet: { sections, }, _web: webContent, } = this;
+		const dynamicIncludes = this.options.children.include.children;
+		sections.forEach(section => {
+			const web = webContent.find(_=>_.tokens === section.tokens) || section.cloneWithoutIncludes();
+			const had = web.dynamic.splice(0, Infinity).length;
+			section.regexps.forEach(source => {
+				const custom = dynamicIncludes.find(_=>_.name === source);
+				if (!custom || !custom.values.current.length) { return; }
+				web.dynamic.push(toRegExp.domains(custom.values.current).source);
+				!webContent.includes(web) && webContent.push(web);
+			});
+			had // if it is not the section
+			&& !web.dynamic.length // and all includes were removed
+			&& !(web.urls.length + web.urlPrefixes.length + web.domains.length + web.regexps.length)
+			&& webContent.splice(webContent.indexOf(web), 1);
+		});
+	}
+
+	// applies the `.options.children.options.children` settings branch to `._sheet.sections`
+	applyOptions() {
+		const { _sheet: { sections, }, } = this;
+		const dynamicOptions = this.options.children.options.children;
+		const prefs = { }; dynamicOptions.forEach(
+			({ name, value, model: { unit, }, }) => (prefs[name] = value + unit)
+		);
+		sections.forEach(_=>_.setOptions(prefs));
+	}
+
+	// applies `._sheet`, `._chrome`, `._content` and `._web` to the UI and browser
+	applyStyle() {
+		const { _sheet: sheet, _chrome: userChrome, _content: userContent, _web: webContent, } = this;
+		const chrome = !userChrome.length && !userContent.length ? null
+		: new ChromeStyle(this.url,
+			userChrome.length  ? sheet.cloneWithSections(userChrome)  : null,
+			userContent.length ? sheet.cloneWithSections(userContent) : null,
+		); this.chrome && this.chrome.destroy(); this.chrome = chrome;
+
+		const web = !webContent.length ? null
+		: new WebStyle(this.url, sheet.cloneWithSections(webContent));
+		this.web && this.web.destroy(); this.web = web;
+
+		this._fireChanged();
+	}
+
+	enable() {
+		if (this.disabled === false) { return; } this.disabled = false;
+		this.update();
+	}
 	disable(supress) {
 		if (this.disabled === true) { return; } this.disabled = true;
 		this.chrome && this.chrome.destroy(); this.chrome = null;
 		this.web && this.web.destroy(); this.web = null;
-		if (!supress) { this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]); }
+		this.meta = Object.freeze({ name: this.name, });
+		this.rebuildOptions();
+		if (!supress) { this._fireChanged(); }
 	}
 
 	destroy(final) {
@@ -378,27 +410,30 @@ class _Style {
 		styles.delete(this.id); this.url = this.id = '';
 	}
 
-
-	toJSON() {
-		const json = {
-			url: this.url, id: this.id, code: this.code, name: this.name,
-			include: this.include.map(_=>_.source), disabled: this.disabled,
-			chrome: this.chrome && this.chrome.toJSON(), web: this.web && this.web.toJSON(),
-		}; Object.defineProperty(json, 'sheet', { value: this.sheet, });
-		return json;
+	_fireChanged() {
+		this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
 	}
 
-	static fromJSON({ url, id, code, name, include, disabled, chrome, web, }) { return (function(self) {
+
+	toJSON() { return {
+		url: this.url, id: this.id, code: this.code, name: this.name, meta: this.meta,
+		/* options, */ include: this.include.map(_=>_.source), disabled: this.disabled,
+		chrome: this.chrome && this.chrome.toJSON(), web: this.web && this.web.toJSON(),
+	}; }
+
+	static fromJSON({ url, id, code, name, meta, include, disabled, chrome, web, }) { return (function(self) {
 		Self.set(this.public = self, this);
-		this.url = url; this.id = id; this.code = code; this.name = name;
-		if (styles.has(this.id)) { throw new Error(`Duplicate Style id`); } styles.set(this.id, self);
-		this.options = new Options({ model: this.getOptionsModel(), prefix: 'style.'+ this.id, storage, });
-		this.include = include.map(_=>RegExp(_));
-		this.sheet = null; this.disabled = disabled;
+		self._ = this; // only for debugging
+		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
+
+		this.url = url; this.id = id; this.code = code; this.name = name; this.meta = deepFreeze(meta);
+		this.options = null; this.include = include.map(_=>RegExp(_)); this.disabled = disabled;
 		this.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
 		this.web = web ? WebStyle.fromJSON(web) : null;
-		fireChanged([ this.id, ]);
-		return self;
+
+		this._sheet = this._chrome = this._content = this._web = null;
+
+		this.initOptions(); this.rebuildOptions(); fireChanged([ this.id, ]); return self;
 	}).call(Object.create(_Style.prototype), Object.create(this.prototype)); }
 }
 
@@ -407,6 +442,10 @@ async function sha1(string) {
 	const hash = (await global.crypto.subtle.digest('SHA-1', new global.TextEncoder('utf-8').encode(string)));
 	return Array.from(new Uint8Array(hash)).map((b => b.toString(16).padStart(2, '0'))).join('');
 }
+
+function deepFreeze(json) { if (typeof json === 'object' && json !== null) {
+		Object.freeze(json); Object.values(json).forEach(deepFreeze);
+} return json; }
 
 return Style;
 

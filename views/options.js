@@ -21,6 +21,7 @@ textarea {
 	display: inline; border: none; padding: 0; margin: 0;
 }
 .pref-name-autoUpdate input { max-width: 4em; }
+.\-pseudo-target>*>.pref-title { outline: dotted; }
 `, ]));
 
 new Editor({

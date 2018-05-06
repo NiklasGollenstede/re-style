@@ -2,6 +2,7 @@
 	'node_modules/web-ext-utils/browser/storage': { local: Storage, },
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'common/options': options,
+	'../parser': { json2css, },
 	'../style': Style,
 	require,
 }) => { /* global setTimeout, clearTimeout, */
@@ -125,12 +126,12 @@ async function prepareUpdate(style, query) {
 	const type = reply.headers.get('content-type'), data = (await reply.text());
 
 	let code; if ((/^application\/json(?:;|$)/).test(type)) {
-		code = JSON.parse(data.replace(/\\r(?:\\n)?/g, '\\n'));
-		// TODO: should do some basic data validation
+		try { code = json2css(data.replace(/\\r(?:\\n)?/g, '\\n'), style); } // TODO: this converts literal `\\r` to `\\n` as well
+		catch (_) { throw new TypeError(`Malformed JSON response for style ${style.name}`); }
 	} else if ((/^text\/(?:css|plain)(?:;|$)/).test(type)) { // also accepts plain text as css
 		code = data.replace(/\r\n?/g, '\n');
 	} else {
-		throw new TypeError(`Unexpected MIME-Type ${ type } for style ${ style.name }`);
+		throw new TypeError(`Unexpected MIME-Type ${type} for style ${style.name}`);
 	}
 	return async () => {
 		(await style.setSheet(code));
@@ -139,6 +140,8 @@ async function prepareUpdate(style, query) {
 	};
 }
 
+
+// TODO: the synchronous write-through cache of the options should render this obsolete
 let running = Promise.resolve(); // like a mutex for mutation operations on the urlList
 const insertUrl = url => queueUrlOp(urls => urls.push(url));
 const removeUrl = url => queueUrlOp(urls => { const at = urls.indexOf(url); at >= 0 && urls.splice(at, 1); });
@@ -153,7 +156,7 @@ let updateTimer; options.remote.children.autoUpdate.when({ true() { updateTimer 
 	const before = Date.now() - options.remote.children.autoUpdate.children.age.value * 3600e3;
 	(await Promise.all((await Promise.all(
 		[ ...styles.values(), ]
-		.filter(style => style.updated < before)
+		.filter(style => !style.disabled && style.updated < before)
 		.map(style => prepareUpdate(style).catch(reportError))
 	)).map(apply => apply && apply().catch(reportError))));
 	options.debug.value && console.info('remote styles updated');
