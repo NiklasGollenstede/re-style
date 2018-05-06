@@ -124,7 +124,7 @@ const toRegExp = {
 const parent = new WeakMap;
 
 class _Style {
-	constructor(self, url, code) { return (async () => {
+	constructor(self, url, code) { return (async () => { try {
 		Self.set(this.public = self, this);
 		self._ = this; // only for debugging
 
@@ -143,68 +143,32 @@ class _Style {
 		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
 
 		this.initOptions(); code && (await this.setSheet(code)); return self;
-	})(); }
+	} catch (error) {
+		try { this.destroy(); } catch (_) { } throw error;
+	} })(); }
 
-	initOptions() {
-		const name = [ 0, ]; Object.defineProperty(name, '0', { get: () => this.name, enumerable: true, });
-		const code = [ 0, ]; Object.defineProperty(code, '0', { get: () => this.code, enumerable: true, });
-		const model = {
-			id: {
-				description: this.url,
-				default: this.id,
-				restrict: { readOnly: true, },
-			},
-			name: {
-				default: name,
-				restrict: { type: 'string', },
-				input: { type: 'string', default: name, },
-			},
-			query: {
-				default: '',
-				restrict: { type: 'string', },
-				hidden: true,
-			},
-			controls: { default: true, input: [
-				{ type: 'control', id: 'update',   label: 'Update', },
-				{ type: 'control', id: 'edit',     label: 'Edit', },
-				{ type: 'control', id: 'info',     label: 'Info', },
-				{ type: 'control', id: 'enable',   label: 'Enable', },
-				{ type: 'control', id: 'disable',  label: 'Disable', },
-				{ type: 'control', id: 'remove',   label: 'Remove', },
-				{ type: 'hidden', suffix: `<span title="Only disables until the next restart, see below.">🛈</span>`, },
-			], },
-			edit: {
-				title: 'Edit',
-				description: `Please note that changes made here are not permanent and will be overwritten on the next update of this style.
-				To customize a style permanently, `,
-				expanded: false, default: true,
-				input: [ { type: 'control', id: 'copy', label: 'create a local copy', suffix: ` of it.`, }, ],
-				children: {
-					code: { default: code, input: { type: 'code', lang: 'css', }, },
-					apply: { default: true, input: [
-						{ type: 'control', id: 'apply', label: 'Apply', },
-						{ type: 'control', id: 'unedit', label: 'Reset', },
-					], },
-				},
-			},
-			include: {
-				title: 'Add to',
-				description: `This style or parts of it can be applied to user-defined pages.<br>
-				You can edit these includes for this style here or add the current pages doain from the pop-up panel.<br>
-				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`,
-				expanded: false, default: true,
-				children: 'dynamic',
-			},
-			options: {
-				title: 'Settings',
-				description: `This style has some custom style settings.<br>
-				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`,
-				expanded: false, default: true,
-				children: 'dynamic',
-			},
-		};
-		this.options = new Options({ model, prefix: 'style.'+ this.id, storage, });
-	}
+	toJSON() { return {
+		url: this.url, id: this.id, code: this.code, name: this.name, meta: this.meta,
+		/* options, */ include: this.include.map(_=>_.source), disabled: this.disabled,
+		chrome: this.chrome && this.chrome.toJSON(), web: this.web && this.web.toJSON(),
+	}; }
+
+	static fromJSON({ url, id, code, name, meta, include, disabled, chrome, web, }) { return (function(self) { try {
+		Self.set(this.public = self, this);
+		self._ = this; // only for debugging
+		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
+
+		this.url = url; this.id = id; this.code = code; this.name = name; this.meta = deepFreeze(meta);
+		this.options = null; this.include = include.map(_=>RegExp(_)); this.disabled = disabled;
+		this.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
+		this.web = web ? WebStyle.fromJSON(web) : null;
+
+		this._sheet = this._chrome = this._content = this._web = null;
+
+		this.initOptions(); this.rebuildOptions(); fireChanged([ this.id, ]); return self;
+	} catch (error) {
+		try { this.destroy(); } catch (_) { } throw error;
+	} }).call(Object.create(_Style.prototype), Object.create(this.prototype)); }
 
 	async setSheet(code) {
 		if (!code) { { // effectively disables the style
@@ -402,7 +366,7 @@ class _Style {
 
 	destroy(final) {
 		if (!this.id) { return; }
-		this.disable(true);
+		try { this.disable(true); } catch (error) { console.error(error); }
 		final && this.options && this.options.resetAll();
 		this.options && this.options.destroy(); this.options = null;
 		Self.delete(this.public);
@@ -414,27 +378,66 @@ class _Style {
 		this.fireChanged && this.fireChanged([ this.public, this.id, ]); fireChanged([ this.id, ]);
 	}
 
-
-	toJSON() { return {
-		url: this.url, id: this.id, code: this.code, name: this.name, meta: this.meta,
-		/* options, */ include: this.include.map(_=>_.source), disabled: this.disabled,
-		chrome: this.chrome && this.chrome.toJSON(), web: this.web && this.web.toJSON(),
-	}; }
-
-	static fromJSON({ url, id, code, name, meta, include, disabled, chrome, web, }) { return (function(self) {
-		Self.set(this.public = self, this);
-		self._ = this; // only for debugging
-		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
-
-		this.url = url; this.id = id; this.code = code; this.name = name; this.meta = deepFreeze(meta);
-		this.options = null; this.include = include.map(_=>RegExp(_)); this.disabled = disabled;
-		this.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
-		this.web = web ? WebStyle.fromJSON(web) : null;
-
-		this._sheet = this._chrome = this._content = this._web = null;
-
-		this.initOptions(); this.rebuildOptions(); fireChanged([ this.id, ]); return self;
-	}).call(Object.create(_Style.prototype), Object.create(this.prototype)); }
+	initOptions() {
+		const name = [ 0, ]; Object.defineProperty(name, '0', { get: () => this.name, enumerable: true, });
+		const code = [ 0, ]; Object.defineProperty(code, '0', { get: () => this.code, enumerable: true, });
+		const model = {
+			id: {
+				description: this.url,
+				default: this.id,
+				restrict: { readOnly: true, },
+			},
+			name: {
+				default: name,
+				restrict: { type: 'string', },
+				input: { type: 'string', default: name, },
+			},
+			query: {
+				default: '',
+				restrict: { type: 'string', },
+				hidden: true,
+			},
+			controls: { default: true, input: [
+				{ type: 'control', id: 'update',   label: 'Update', },
+				{ type: 'control', id: 'edit',     label: 'Edit', },
+				{ type: 'control', id: 'info',     label: 'Info', },
+				{ type: 'control', id: 'enable',   label: 'Enable', },
+				{ type: 'control', id: 'disable',  label: 'Disable', },
+				{ type: 'control', id: 'remove',   label: 'Remove', },
+				{ type: 'hidden', suffix: `<span title="Only disables until the next restart, see below.">🛈</span>`, },
+			], },
+			edit: {
+				title: 'Edit',
+				description: `Please note that changes made here are not permanent and will be overwritten on the next update of this style.
+				To customize a style permanently, `,
+				expanded: false, default: true,
+				input: [ { type: 'control', id: 'copy', label: 'create a local copy', suffix: ` of it.`, }, ],
+				children: {
+					code: { default: code, input: { type: 'code', lang: 'css', }, },
+					apply: { default: true, input: [
+						{ type: 'control', id: 'apply', label: 'Apply', },
+						{ type: 'control', id: 'unedit', label: 'Reset', },
+					], },
+				},
+			},
+			include: {
+				title: 'Add to',
+				description: `This style or parts of it can be applied to user-defined pages.<br>
+				You can edit these includes for this style here or add the current pages doain from the pop-up panel.<br>
+				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`,
+				expanded: false, default: true,
+				children: 'dynamic',
+			},
+			options: {
+				title: 'Settings',
+				description: `This style has some custom style settings.<br>
+				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`,
+				expanded: false, default: true,
+				children: 'dynamic',
+			},
+		};
+		this.options = new Options({ model, prefix: 'style.'+ this.id, storage, });
+	}
 }
 
 async function sha1(string) {

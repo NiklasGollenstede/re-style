@@ -81,7 +81,13 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 		const key = 'remote.cache.'+ id;
 		const stored = Storage.get(key);
 		if (stored) {
-			actions.push(() => RemoteStyle.fromJSON(stored));
+			actions.push(async () => { try {
+				RemoteStyle.fromJSON(stored);
+			} catch (error) {
+				console.warn('failed to restore cached style', id, url, error, stored);
+				const style = (await new RemoteStyle(url, ''));
+				(await (await prepareUpdate(style))());
+			} });
 		} else {
 			console.warn('cache missing for style', id, url);
 			const style = (await new RemoteStyle(url, ''));
@@ -93,7 +99,7 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 	else { (await new Promise((resolve, reject) => { global.__startupSyncPoint__ = resolve; require.async('../local/').catch(reject); })); }
 
 	// add all restored styles at once, so that `ChromeStyle` and `WebStyle` don't need to update multiple times
-	actions.forEach(action => { try { action(); } catch (error) { reportError(`Failed to restore remote style`, error); } });
+	actions.forEach(async action => { try { (await action()); } catch (error) { reportError(`Failed to restore remote style`, error); } });
 
 	styles.forEach(_=>_.onChanged(onChanged));
 })();
