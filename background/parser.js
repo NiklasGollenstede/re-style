@@ -52,7 +52,7 @@ class Sheet {
 	toString({ namespace = true, minify = false, } = { }) {
 		return (
 			namespace && this.namespace ? '@namespace '+ this.namespace +';' : ''
-		) + this.sections.map(
+		) + (minify ? '' : '\n\n') + this.sections.map(
 			_=>_.toString(arguments[0])
 		).join(minify ? '' : '\n\n');
 	}
@@ -181,7 +181,7 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 	); if (metaBlock) {
 		Object.assign(meta, parseMetaBlock(metaBlock, onerror));
 	} else {
-		const where = globalTokens.concat(sections[1] ? sections[1].tokens.slice(0, 25 - globalTokens.length) : [ ]);
+		const where = globalTokens.slice(0, 5).concat(sections[1] ? sections[1].tokens.slice(0, 4) : [ ]);
 		rsFuzzyTitle.some(exp => where.some(token => {
 			if (!(/^\/\*/).test(token)) { return null; }
 			const match = exp.exec(token);

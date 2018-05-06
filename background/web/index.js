@@ -9,11 +9,11 @@ let debug; options.debug.whenChange(([ value, ]) => { debug = value; });
  * Represents (the parts of) a style sheet that can be attached via `Tabs.insertCSS`.
  */
 class ContentStyle {
-	constructor(url, code) {
+	constructor(url, sheet) {
 		this.url = url;
 		// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'` (see https://bugzilla.mozilla.org/show_bug.cgi?id=1035091)
 		// so, as with `ChromeStyle`s, '!important' has to be added to every rule
-		this.code = code.toString({ minify: false, important: true, namespace: true, })
+		this.code = sheet.toString({ minify: false, important: true, namespace: true, })
 		+ `\n/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
 		styles.add(this); styles.size === 1 && WebNavigation.onCommitted.addListener(onNavigation);
 		toAdd.add(this.code); refresh();

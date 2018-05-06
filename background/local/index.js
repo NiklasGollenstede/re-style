@@ -156,10 +156,19 @@ async function onChromeChange(path, css) { try {
 			oldSections.splice(oldSections.indexOf(oldSection), 1); // only use each old section once
 			if (sameArray(oldSection.tokens, section.tokens)) { continue; } // section wasn't changed
 			if (!oldSection.location) { console.warn(`can't apply changes to global CSS`); continue; }
-			parts.splice( // this requires the sections to stay in the same order
+
+			// "un-apply" any user-overwritten options
+			const newSetction = section.cloneWithoutIncludes();
+			const prefs = { }; style.options.children.options.children.forEach(
+				({ name, default: value, values: { isSet, }, model: { unit, }, }) =>
+				isSet && (prefs[name] = value + unit)
+			); newSetction.setOptions(prefs);
+
+			// write the changed section
+			parts.splice( // TODO: this requires the sections to stay in the same order
 				parts.length - 1, 1, // pop last
 				style.code.slice(lastPos, oldSection.location[0]),
-				section.tokens.join(''), // new code with user selected settings applied
+				newSetction.tokens.join(''), // new code with user selected settings applied
 				style.code.slice(lastPos = oldSection.location[1])
 			);
 		}

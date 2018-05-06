@@ -41,6 +41,10 @@
 	margin: 7px;
 }
 
+.pref-description p {
+	margin: .5em 0;
+}
+
 .pref-name-id {
 	font-size: 125%;
 	user-select: text;

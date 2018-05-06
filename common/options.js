@@ -82,10 +82,15 @@ const model = {
 			},
 			chrome: {
 				title: 'Chrome debugging [ᴇxᴘᴇʀɪᴍᴇɴᴛᴀʟ]',
-				description: `To develop chrome styles without restarting the browser after every change, the corresponding sections in the <code>userCrome.css</code>/<code>userContent.css</code> files can be edited through the Style Editor in the <i>Browser Toolbox</i> (<code>Ctrl</code> + <code>Shift</code> + <code>Alt</code> + <code>I</code>) or the page inspector on <code>about:</code>-pages.<br>
-				Firefox applies changes made there after a short delay, and when saving (<code>Ctrl</code>+<code>S</code>), writes the new files to the disc.
-				As an <b>experimental</b> feature, ${manifest.short_name} can detect these on-disc changes and map them back to the original (local) style files.<br>
+				description: `<p>To develop chrome styles without restarting the browser after every change, the corresponding sections in the <code>userCrome.css</code>/<code>userContent.css</code> files can be edited
+				through the Style Editor in the <i>Browser Toolbox</i> (<code>Ctrl</code> + <code>Shift</code> + <code>Alt</code> + <code>I</code>) for the main UI or the page inspector on <code>about:</code>-pages.<br>
+				Firefox applies changes made there after a short delay, and when saving (<code>Ctrl</code>+<code>S</code>), writes the new files to the disc.</p>
+				<p>As an <b>experimental</b> feature, ${manifest.short_name} can detect these on-disc changes and map them back to the original (local) style files.<br>
+				${manifest.short_name} is only able to map chages made within the code block of existing <code>@document</code> sections.
+				Other modifications can not be mapped to the original files and may have unexpexted results.
+				Any changes made to the source files since the browser start will be overwritten when the <code>userCrome.css</code>/<code>userContent.css</code> files are saved.</p>
 				<b>Activate at your own risk and always make backups!</b>`,
+				expanded: false,
 				default: false,
 				restrict: { type: 'boolean', },
 				input: { type: 'boolean', suffix: `enable`, },

@@ -2,7 +2,7 @@
 	'node_modules/web-ext-utils/browser/': { browserAction, Tabs, rootUrl, },
 	'node_modules/web-ext-utils/browser/version': { fennec, },
 	'node_modules/web-ext-utils/loader/views': { getUrl, openView, },
-	'node_modules/web-ext-utils/utils/': { reportSuccess, },
+	'node_modules/web-ext-utils/utils/': { reportSuccess, reportError, },
 	'node_modules/es6lib/functional': { debounce, },
 	'views/': _, // put views in tabview
 	'./chrome/': ChromeStyle,
@@ -56,7 +56,7 @@ const colors = { normal: [ 0x00, 0x7f, 0x00, 0x60, ], restart: [ 0xa5, 0x50, 0x0
 browserAction.setBadgeBackgroundColor({ color: colors.normal, });
 let wasChanged = false; ChromeStyle.onWritten(changed => {
 	browserAction.setBadgeBackgroundColor({ color: changed ? colors.restart : colors.normal, });
-	(changed || wasChanged) && reportSuccess(
+	(changed || wasChanged) && (changed ? reportError : reportSuccess)( // info or warn would be more appropriate than error ...
 		`The UI styles were written`, changed
 		? `and have changed. The browser must be restarted to apply the changes!`
 		: `and changed back. No need to restart the browser anymore!`
