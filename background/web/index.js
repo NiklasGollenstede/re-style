@@ -92,6 +92,7 @@ let pending = null; async function getFrames() {
 
 // only listens while styles.size > 0
 function onNavigation({ tabId, frameId, url, }) {
+	url.startsWith('wyciwyg://') && (url = url.replace(/^wyciwyg:\/\/(?:\d+\/)?/, '')); // cached (subframe?) in Firefox, most likely a bug
 	isScripable(url) && styles.forEach(({ code, }) =>
 		Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', cssOrigin: 'user', })
 	);
