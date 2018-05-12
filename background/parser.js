@@ -71,13 +71,13 @@ class Sheet {
  * Parsed `@document` block within a `Sheet`. Exported as `Sheet.Section`.
  * All include rules are set as interpreted strings, e.g.
  * a literal `@regexp("a\\b\/c\.d")` would result in a `a\b/c.d` entry in `.regexp`.
- * @property {[string]}   urls         `url()` document include rules.
- * @property {[string]}   urlPrefixes  `url-prefixe()` document include rules.
- * @property {[string]}   domains      `domain()` document include rules.
- * @property {[string]}   regexps      `regexp()` document include rules.
- * @property {[string]}   dynamic      Dynamically configurable document include rules, like regexps.
- * @property {[int,int]?} location     For `Section`s directly parsed by `Section.fromCode` this
- *                                     is their location within the original source code string.
+ * @property {[{value,as,}]}   urls         `url()` document include rules.
+ * @property {[{value,as,}]}   urlPrefixes  `url-prefixe()` document include rules.
+ * @property {[{value,as,}]}   domains      `domain()` document include rules.
+ * @property {[{value,as,}]}   regexps      `regexp()` document include rules.
+ * @property {[{value,as,}]}   dynamic      Dynamically configurable document include rules, like regexps.
+ * @property {[int,int]?}      location     For `Section`s directly parsed by `Section.fromCode` this
+ *                                          is their location within the original source code string.
  */
 class Section {
 
@@ -149,12 +149,12 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 			parts.forEach(decl => {
 				const match = rUrlRule.exec(decl);
 				if (!match) { onerror(Error(`Can't parse @document rule \`\`\`${ decl }´´´`)); return; }
-				const { type, string, raw = evalString(string), } = match;
+				const { type, string, raw = evalString(string), as, } = match;
 				switch (type) {
-					case 'url': urls.push(raw); break;
-					case 'url-prefix': urlPrefixes.push(raw); break;
-					case 'domain': domains.push(raw); break;
-					case 'regexp': regexps.push(raw); break;
+					case 'url': urls.push({ value: raw, as, }); break;
+					case 'url-prefix': urlPrefixes.push({ value: raw, as, }); break;
+					case 'domain': domains.push({ value: raw, as, }); break;
+					case 'regexp': regexps.push({ value: raw, as, }); break;
 					default: onerror(new Error(`Unrecognized @document rule ${ type }`)); return;
 				}
 			});
@@ -177,7 +177,7 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 	const meta = { }, self = new Sheet(meta, sections, namespace);
 
 	const metaBlock = globalTokens.find(token =>
-		(/^\/\*\**\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
+		(/^\/\*[*!]*\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
 	); if (metaBlock) {
 		Object.assign(meta, parseMetaBlock(metaBlock, onerror));
 	} else {
@@ -231,8 +231,9 @@ function json2css(json) {
 	return JSON.parse(json).sections.map(({ urls, urlPrefixes, domains, regexps, code, }) => {
 		// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
 		// but e.g. to compare them against actual URLs, their escapes need to be evaluated
-		urls = urls.map(evalString); urlPrefixes = urlPrefixes.map(evalString);
-		domains = domains.map(evalString); regexps = regexps.map(evalString);
+		const toObj = s => ({ value: evalString(s), });
+		urls = urls.map(toObj); urlPrefixes = urlPrefixes.map(toObj);
+		domains = domains.map(toObj); regexps = regexps.map(toObj);
 
 		return Section_toString.call({ urls, urlPrefixes, domains, regexps, dynamic: [ ], tokens: [ code, ], });
 	}).join('\n\n');
@@ -246,17 +247,17 @@ function Section_toString({ minify = false, important = false, } = { }) {
 	if (this.urls.length + this.urlPrefixes.length + this.domains.length + this.regexps.length + this.dynamic.length === 0) { return tokens.join(''); }
 
 	return '@-moz-document'+ (minify ? ' ' : '\n\t') + [
-		...this.urls.map(raw => `url(${JSON.stringify(raw)})`),
-		...this.urlPrefixes.map(raw => `url-prefix(${JSON.stringify(raw)})`),
-		...this.domains.map(raw => `domain(${JSON.stringify(raw)})`),
-		...this.regexps.map(raw => `regexp(${JSON.stringify(raw)})`),
-		...this.dynamic.map(raw => `regexp(${JSON.stringify(raw)})`),
+		...this.urls.map(({ value, }) => `url(${ JSON.stringify(value) })`),
+		...this.urlPrefixes.map(({ value, }) => `url-prefix(${ JSON.stringify(value) })`),
+		...this.domains.map(({ value, }) => `domain(${ JSON.stringify(value) })`),
+		...this.regexps.map(({ value, }) => `regexp(${ JSON.stringify(value) })`),
+		...this.dynamic.map(({ value, }) => `regexp(${ JSON.stringify(value) })`),
 	].join(minify ? ',' : ',\n\t')
 	+ (minify ? '' : '\n') +'{'+ tokens.join('') +'}';
 }
 
 const rOptionTag = RegExpX`^
-	\/\*\[\[              # /*[[
+	\/\*!?\[\[            # /*[[ or /*![[
 		([\!\/])          # ! for opening, / for closing
 		([a-zA-Z][\w-]+)  # name
 	\]\]\*\/              # ]]*/
@@ -304,11 +305,12 @@ const rNonEscape = RegExpX('n')`( # shortest possible sequence that does not end
 	| ( \\ \\ )*    # an even number of backslashes
 )*?`;
 const rUrlRule = RegExpX('n')`
-	(?<type> url(-prefix)? | domain | regexp ) \s* \( \s* (
+	(?<type> url(-prefix)? | domain | regexp )
+	\s* ( \/\* .*? \*\/ \s* )? \( \s* ( \/\* .*? \*\/ \s* )? ( # whitespace/comment + open (
 		  ' (?<string> ${rNonEscape} ) '
 		| " (?<string> ${rNonEscape} ) "
 		| (?<raw> .*? )
-	) \s* \)
+	) \s* ( \/\* ( !? as:\ ? (?<as> (chrome|content|web) ) | .*? ) \*\/ \s* )? \)
 `;
 const rTokens = RegExpX('gns')`
 	# TODO: \\ [^] should be a token, probably with highest priority
@@ -438,7 +440,7 @@ function evalString(string) {
 }
 
 function parseMetaBlock(block, onerror) {
-	const entries = block.slice(0, -2).split(/^\ ?\*\ ?@(?=\w)/gm).slice(1);
+	const entries = block.slice(0, -2).split(/^ ?\* ?@(?=\w)/gm).slice(1);
 
 	const meta = { }; for (const entry of entries) { try {
 		let key = (/^\w+/).exec(entry)[0];
@@ -446,10 +448,10 @@ function parseMetaBlock(block, onerror) {
 			case 'title': key = 'name'; /* falls through */
 			case 'licence': key = 'license'; /* falls through */
 			case 'name': case 'author': case 'license': {
-				meta[key] = (/^\ ?.*/).exec(entry.slice(key.length))[0].trim();
+				meta[key] = (/^ ?.*/).exec(entry.slice(key.length))[0].trim();
 			} break;
 			case 'description': {
-				meta.description = entry.slice(key.length).replace(/^\ ?\*?\ {0,5}/gm, '').trim();
+				meta.description = entry.slice(key.length).replace(/^ ?\*? {0,5}/gm, '').trim();
 			} break;
 			case 'include': {
 				const { name, title, description, default: value, type, } = parseTable(entry.slice(key.length));

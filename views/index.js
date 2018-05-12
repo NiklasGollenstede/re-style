@@ -23,7 +23,7 @@ return new Home({
 		id: 'options',
 		title: 'Options',
 		icon: createElement('div', { style: {
-			position: 'relative', fontSize: '180%', top: '-6px',
+			position: 'relative', fontSize: '180%', top: '-5px',
 		}, }, [ '⚙', ]),
 	}, {
 		id: 'about',

@@ -21,7 +21,7 @@ module.exports = {
 	async watchChrome(onChange) {
 		const chromeDir = Path.join(require('browser').profileDir, 'chrome');
 		try { (await get(FS.mkdir, chromeDir)); } catch (_) { }
-		(await readAndWatch((/[\/\\]user(?:Chrome|Content)[.]css$/), chromeDir, onChange));
+		(await readAndWatch((/[\\/]user(?:Chrome|Content)[.]css$/), chromeDir, onChange));
 	},
 
 	/// Releases an `onChange` listener.

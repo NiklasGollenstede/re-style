@@ -4,6 +4,7 @@
 	'node_modules/web-ext-utils/options/': Options,
 	'node_modules/web-ext-utils/utils/event': { setEvent, setEventGetter, },
 	'node_modules/regexpx/': RegExpX,
+	'common/options': options,
 	'./chrome/': ChromeStyle,
 	'./web/': WebStyle,
 	'./parser': Sheet,
@@ -104,16 +105,17 @@ const chromeUrlPrefixes = [
 	'chrome://', // only this (?)
 ];
 
+const contentDomains = options.advanced.children.restrictedDomains.value.split(',');
 const contentUrlPrefixes = [
 	'about:',
 	'blob:', 'data:', // pretty sure data: doesn't work in a WebStyle, and even if blob:https?:// does, others shouldn't
 	'view-source:',
 	'resource://',
 	'moz-extension://',
-	'https://addons.mozilla.org/',
-];
+	...contentDomains.map(_=>`https://${_}/`),
+], rContentDomains = RegExpX`^ ${contentDomains} $`;
 
-const RegExpXu = RegExpX('un');
+const RegExpXu = RegExpX({ unicode: true, noCapture: true, });
 const toRegExp = {
 	urls(raws) { return RegExpXu`^ ${raws} $`; },
 	urlPrefixes(raws) { return RegExpXu`^ ${raws} .*$`; },
@@ -137,7 +139,7 @@ class _Style {
 		this._sheet = this._chrome = this._content = this._web = null;
 		this.fireChanged = null; // set by setEventGetter
 
-		const name = this.name = url.split(/[\/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
+		const name = this.name = url.split(/[/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
 		this.meta = Object.freeze({ name, }); this.url = url;
 		const id = this.id = (await Style.url2id(url));
 		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
@@ -185,7 +187,7 @@ class _Style {
 		this.update(); return true;
 	}
 
-	// applies the `._sheet?` to the UI and browser
+	/// applies the `._sheet?` to the UI and browser
 	update() {
 		if (this.disabled) { this.parseIncludes(); this._fireChanged(); return; }
 		const sheet = this._sheet = this._sheet || Sheet.fromCode(this.code);
@@ -197,7 +199,7 @@ class _Style {
 		this.applyStyle();
 	}
 
-	// gets `.name` from `._sheet.meta` or a `._sheet.sections` include rule
+	/// gets `.name` from `._sheet.meta` or a `._sheet.sections` include rule
 	updateName() {
 		const { _sheet: { meta, sections, }, } = this;
 		if (!meta.name) { meta.name = (/^\d*$/).test(this.name) && sections.length >= 1 ? (
@@ -212,18 +214,18 @@ class _Style {
 		}
 	}
 
-	// refreshes `.includes` from `._sheet?`
+	/// refreshes `.includes` from `._sheet?`
 	parseIncludes() {
 		const { sections, } = this._sheet = this._sheet || Sheet.fromCode(this.code);
 		const include = [ ]; sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
-				section[type].length && include.push(toRegExp[type](section[type]));
+				section[type].length && include.push(toRegExp[type](section[type].map(_=>_.value)));
 			} catch(error) { console.error(`Failed to parse ${type} pattern(s) in ${this.url}`, error); } })
 		);
 		this.include.splice(0, Infinity, ...include);
 	}
 
-	// refreshes `._chrome`, `._content` and `._web` from `._sheet?`
+	/// refreshes `._chrome`, `._content` and `._web` from `._sheet?`
 	parseSections() {
 		const { sections, namespace, } = this._sheet = this._sheet || Sheet.fromCode(this.code);
 		const userChrome = this._chrome = [ ]; const userContent = this._content = [ ]; const webContent = this._web = [ ];
@@ -237,30 +239,30 @@ class _Style {
 			}
 
 			const chrome_ = section.cloneWithoutIncludes(), content = section.cloneWithoutIncludes(), web = section.cloneWithoutIncludes();
+			const targets = { chrome: chrome_, content, web, };
 
-			domains.forEach(domain => domain === 'addons.mozilla.org' ? content.domains.push(domain) : web.domains.push(domain));
+			domains.forEach(({ value, as, }) => targets[as || (
+				rContentDomains.test(value) ? 'content' : 'web'
+			)].domains.push({ value, as, }));
 
-			urls.forEach(url => {
-				let isWeb = true;
-				if (chromeUrlPrefixes .some(prefix => url.startsWith(prefix))) { chrome_.urls.push(url); isWeb = false; }
-				if (contentUrlPrefixes.some(prefix => url.startsWith(prefix))) { content.urls.push(url); isWeb = false; }
-				isWeb && web.urls.push(url);
-			});
+			urls.forEach(({ value, as, }) => targets[as || (
+				  chromeUrlPrefixes .some(prefix => value.startsWith(prefix)) ? 'chrome'
+				: contentUrlPrefixes.some(prefix => value.startsWith(prefix)) ? 'content' : 'web'
+			)].urls.push({ value, as, }));
 
-			urlPrefixes.forEach(url => {
-				let isWeb = true;
-				if (chromeUrlPrefixes .some(prefix => url.startsWith(prefix) || prefix.startsWith(url))) { chrome_.urlPrefixes.push(url); isWeb = false; }
-				if (contentUrlPrefixes.some(prefix => url.startsWith(prefix) || prefix.startsWith(url))) { content.urlPrefixes.push(url); isWeb = false; }
-				isWeb && web.urlPrefixes.push(url);
-			});
+			urlPrefixes.forEach(({ value, as, }) => targets[as || (
+				  chromeUrlPrefixes .some(prefix => value.startsWith(prefix) || prefix.startsWith(value)) ? 'chrome'
+				: contentUrlPrefixes.some(prefix => value.startsWith(prefix) || prefix.startsWith(value)) ? 'content' : 'web'
+			)].urlPrefixes.push({ value, as, }));
 
 			// this is not going to be accurate (and therefore not exclusive)
-			regexps.forEach(source => {
-				if ((/^\w+$/).test(source)) { return; } // dynamic include or has no effect
-				(/chrome\\?:\\?\/\\?\//).test(source) && chrome_.regexps.push(source);
+			regexps.forEach(({ value, as, }) => {
+				if ((/^\w+$/).test(value)) { return; } // dynamic include or has no effect
+				if (as) { targets[as].regexps.push({ value, as, }); }
+				(/chrome\\?:\\?\/\\?\//).test(value) && chrome_.regexps.push({ value, as, });
 				(/(?:resource|moz-extension)\)?\\?:\\?\/\\?\/|(?:about|blob|data|view-source)\)?\\?:/)
-				.test(source) && content.regexps.push(source);
-				web.regexps.push(source); // could pretty much always (also) match a web page
+				.test(value) && content.regexps.push({ value, as, });
+				web.regexps.push({ value, as, }); // could pretty much always (also) match a web page
 			});
 
 			chrome_.urls.length + chrome_.urlPrefixes.length + chrome_.domains.length + chrome_.regexps.length > 0 && userChrome.push(chrome_);
@@ -269,7 +271,7 @@ class _Style {
 		});
 	}
 
-	// (re-)builds `.options.children[includes|options].children` settings branches from `this.meta`
+	/// (re-)builds `.options.children[includes|options].children` settings branches from `this.meta`
 	rebuildOptions() {
 		const { meta, } = this;
 		const styleOptions = (branch, model, onChange) => {
@@ -284,6 +286,7 @@ class _Style {
 				}, ], prefix: 'style.'+ this.id +'.'+ branch, storage, });
 				const option = root.children[0]; parent.set(option, root);
 				option.onChange(() => {
+					this.disabled = false;
 					!this._sheet && this.parseSections(); // restored from JSON
 					this[onChange](); this.applyStyle();
 				});
@@ -305,27 +308,32 @@ class _Style {
 		return { dynamicIncludes, dynamicOptions, };
 	}
 
-	// applies the `.options.children.options.children` settings branch to `._sheet.sections` and `._web`
+	/// applies the `.options.children.include.children` settings branch to `._sheet.sections` and `._web`
 	applyIncludes() {
-		const { _sheet: { sections, }, _web: webContent, } = this;
+		const { _sheet: { sections, }, _web: webContent, _content: userContent, } = this;
 		const dynamicIncludes = this.options.children.include.children;
-		sections.forEach(section => {
-			const web = webContent.find(_=>_.tokens === section.tokens) || section.cloneWithoutIncludes();
-			const had = web.dynamic.splice(0, Infinity).length;
-			section.regexps.forEach(source => {
-				const custom = dynamicIncludes.find(_=>_.name === source);
-				if (!custom || !custom.values.current.length) { return; }
-				web.dynamic.push(toRegExp.domains(custom.values.current).source);
-				!webContent.includes(web) && webContent.push(web);
+		sections.forEach(section => Object.entries({
+			web: webContent, content: userContent,
+		}).forEach(([ type, targets, ]) => {
+			const target = targets.find(_=>_.tokens === section.tokens) || section.cloneWithoutIncludes();
+			const hadDynamic = target.dynamic.splice(0, Infinity).length;
+			section.regexps.forEach(({ value: source, as, }) => {
+				if (as && as !== type) { return; }
+				const custom = dynamicIncludes.find(_=>_.name === source); if (!custom) { return; }
+				const domains = custom.values.current.filter(domain =>
+					as || rContentDomains.test(domain) === (type === 'content')
+				); if (!domains.length) { return; }
+				target.dynamic.push({ value: toRegExp.domains(domains).source, as, });
+				!targets.includes(target) && targets.push(target);
 			});
-			had // if it is not the section
-			&& !web.dynamic.length // and all includes were removed
-			&& !(web.urls.length + web.urlPrefixes.length + web.domains.length + web.regexps.length)
-			&& webContent.splice(webContent.indexOf(web), 1);
-		});
+			hadDynamic // if it is not the section
+			&& !target.dynamic.length // and all includes were removed
+			&& !(target.urls.length + target.urlPrefixes.length + target.domains.length + target.regexps.length)
+			&& targets.splice(targets.indexOf(target), 1);
+		}));
 	}
 
-	// applies the `.options.children.options.children` settings branch to `._sheet.sections`
+	/// applies the `.options.children.options.children` settings branch to `._sheet.sections`
 	applyOptions() {
 		const { _sheet: { sections, }, } = this;
 		const dynamicOptions = this.options.children.options.children;
@@ -335,7 +343,7 @@ class _Style {
 		sections.forEach(_=>_.setOptions(prefs));
 	}
 
-	// applies `._sheet`, `._chrome`, `._content` and `._web` to the UI and browser
+	/// applies `._sheet`, `._chrome`, `._content` and `._web` to the UI and browser
 	applyStyle() {
 		const { _sheet: sheet, _chrome: userChrome, _content: userContent, _web: webContent, } = this;
 		const chrome = !userChrome.length && !userContent.length ? null
@@ -359,8 +367,6 @@ class _Style {
 		if (this.disabled === true) { return; } this.disabled = true;
 		this.chrome && this.chrome.destroy(); this.chrome = null;
 		this.web && this.web.destroy(); this.web = null;
-		this.meta = Object.freeze({ name: this.name, });
-		this.rebuildOptions();
 		if (!supress) { this._fireChanged(); }
 	}
 

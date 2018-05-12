@@ -1,4 +1,5 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+	'node_modules/web-ext-utils/browser/': { manifest, },
 	'background/style': Style,
 }) => async (window, location) => { const { document, } = window;
 
@@ -8,10 +9,11 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 	pre>code:empty::after { content: '<none>'; }
 </style>`);
 
-showInfo(); location.onHashChange(showInfo);
+showInfo(); location.onHashChange(() => window.location.reload());
 
 function showInfo() {
 	const url = location.hash;
+	document.title = url +' – '+ manifest.short_name;
 
 	let style; for (const { 1: it, } of Style) {
 		if (it.url === url) { style = it; break; }

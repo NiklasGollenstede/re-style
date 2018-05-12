@@ -22,6 +22,10 @@ textarea {
 }
 .pref-name-autoUpdate input { max-width: 4em; }
 .\-pseudo-target>*>.pref-title { outline: dotted; }
+
+/* temporary/experimental adjustments: */
+.checkbox-wrapper > label::after { line-height: 17px; top: unset !important; }
+code { box-shadow: 0 0 1.5px 0px white inset; border-radius: 3px; }
 `, ]));
 
 new Editor({

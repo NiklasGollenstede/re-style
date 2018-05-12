@@ -30,7 +30,7 @@ document.body.innerHTML = `<style>
 		#main #styles label + b { cursor: pointer; }
 		#main .includes { margin-left: 30px; } .includes input { margin-left: 6px; }
 		#main textarea { width: 100%; resize: vertical; max-height: 8.2em; min-height: 3.5em; overflow-y: scroll; word-break: break-all; }
-		#main #create { float: right; }
+		#main #buttons { display: flex; margin-top: 3px; } #main #buttons div { flex: 1; }
 		/* #main::before {
 			background: no-repeat center/contain url(/icon.svg); margin: 20px; opacity: .3;
 			content: ''; z-index: -1; position:fixed;top:0;left:0;bottom:0;right:0;
@@ -42,8 +42,8 @@ document.body.innerHTML = `<style>
 	<div id=styles></div>
 	<select id=addTo><option></option></select>
 	<h3>Install style</h3>
-	<textarea id=url type=text placeholder="URL to .css file"></textarea><br>
-	<button id=add>Add style</button><button id=create>Create new style</button>
+	<textarea id=url type=text placeholder="URL to .css file"></textarea>
+	<div id=buttons><button id=add>Add style</button><div></div><button id=create>Create new style</button></div>
 </div>`;
 const tab = location.activeTab !== Tabs.TAB_ID_NONE ? (await Tabs.get(location.activeTab)) : (await Tabs.query({ currentWindow: true, active: true, }))[0];
 const url = new global.URL(tab.url);

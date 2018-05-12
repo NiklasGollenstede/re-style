@@ -1,15 +1,16 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { rootUrl, manifest, Tabs, },
+	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
-	'node_modules/es6lib/dom': { createElement, },
+	'node_modules/es6lib/dom': { createElement: _createElement, },
 	'background/local/': LocalStyle,
 	'background/remote/': RemoteStyle,
 	'background/style': Style,
 	'fetch!./styles.css:css': css,
 	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorIndexCss,
 }) => async window => { const { document, } = window;
+const createElement = _createElement.bind(window); // create elements with correct owner so event listeners are detached on unload
 
 const Sections = {
 	remote: {

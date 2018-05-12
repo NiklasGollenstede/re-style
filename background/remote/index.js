@@ -137,7 +137,7 @@ async function prepareUpdate(style, query) {
 	} else if ((/^text\/(?:css|plain)(?:;|$)/).test(type)) { // also accepts plain text as css
 		code = data.replace(/\r\n?/g, '\n');
 	} else {
-		throw new TypeError(`Unexpected MIME-Type ${type} for style ${style.name}`);
+		throw new TypeError(`Unexpected MIME-Type ${type} for style ${ style.name || 'to be added' }`);
 	}
 	return async () => {
 		(await style.setSheet(code));

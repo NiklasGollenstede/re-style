@@ -28,14 +28,14 @@ class LocalStyle extends Style {
 	/// creates a new `.css` file in the local folder
 	static async createStyle(name, file) {
 		if (!native) { throw new Error(`Can only write files if Development mode is enabled`); }
-		const path = options.local.children.folder.value.replace(/([\\\/])?$/, _=>_ || '/') + name;
+		const path = options.local.children.folder.value.replace(/([\\/])?$/, _=>_ || '/') + name;
 		(await native.createStyle(path, file)); return path;
 	}
 
 	/// opens a `.css` file in the local folder with the systems default editor
 	static async openStyle(name) {
 		if (!native) { throw new Error(`Can only write files if Development mode is enabled`); }
-		const path = options.local.children.folder.value.replace(/([\\\/])?$/, _=>_ || '/') + name;
+		const path = options.local.children.folder.value.replace(/([\\/])?$/, _=>_ || '/') + name;
 		(await native.openStyle(path)); return path;
 	}
 
@@ -132,7 +132,7 @@ async function onChromeChange(path, css) { try {
 	css && (css = css.replace(/\r\n?/g, '\n'));
 	if (!css) { return; } // file deleted
 	console.info(`${path.split(/\\|\//g).pop()} changed, applying changes to local files in ${options.local.children.folder.value} (if any)`);
-	const isChrome = (/[\/\\]userChrome[.]css$/).test(path);
+	const isChrome = (/[\\/]userChrome[.]css$/).test(path);
 
 	// for each file segment ...
 	(await Promise.all(Object.entries(ChromeStyle.extractFiles(css)).map(async ([ path, css, ]) => {
