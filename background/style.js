@@ -105,7 +105,7 @@ const chromeUrlPrefixes = [
 	'chrome://', // only this (?)
 ];
 
-const contentDomains = options.advanced.children.restrictedDomains.value.split(',');
+const contentDomains = options.internal.children.restrictedDomains.value.split(',');
 const contentUrlPrefixes = [
 	'about:',
 	'blob:', 'data:', // pretty sure data: doesn't work in a WebStyle, and even if blob:https?:// does, others shouldn't

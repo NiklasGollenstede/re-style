@@ -14,17 +14,17 @@ return new Home({
 			backgroundImage: `url(${ getURL('icon.svg') })`,
 		}, }),
 	}, {
-		id: 'setup',
-		title: 'Setup',
-		icon: createElement('div', { style: {
-			position: 'relative', fontSize: '130%', top: '-6px',
-		}, }, [ '❔', ]),
-	}, {
 		id: 'options',
 		title: 'Options',
 		icon: createElement('div', { style: {
 			position: 'relative', fontSize: '180%', top: '-5px',
 		}, }, [ '⚙', ]),
+	}, {
+		id: 'setup',
+		title: 'Setup',
+		icon: createElement('div', { style: {
+			position: 'relative', fontSize: '130%', top: '-6px',
+		}, }, [ '❔', ]),
 	}, {
 		id: 'about',
 		title: 'About',

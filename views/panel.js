@@ -1,5 +1,5 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { Tabs, },
+	'node_modules/web-ext-utils/browser/': { Tabs, WebNavigation, },
 	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
 	'node_modules/es6lib/dom': { createElement, },
@@ -17,7 +17,7 @@ document.body.innerHTML = `<style>
 	:root { font-family: Segoe UI, Tahoma, sans-serif; overflow: hidden; }
 	:root, body { background: #424f5a; } body>* { filter: invert(1) hue-rotate(180deg); }
 	:root { box-sizing: border-box; } * { box-sizing: inherit; }
-	:root { width: 350px; margin-bottom: -1px; } body { width: 333px; margin: 0; }
+	:root { margin-bottom: -1px; } body { min-width: 333px; margin: 0; }
 	:root { user-select: none; -moz-user-select: none; }
 </style><div id=main>
 	<style>
@@ -180,5 +180,19 @@ if ((/^https?:$/).test(url.protocol)) {
 		};
 	} else { addTo.style.display = 'none'; }
 } else { addTo.style.display = 'none'; }
+
+
+/// reload on tab change
+function reload(info) { (
+	info.transitionType // webNavigation
+	? info.tabId === tab.id && info.frameId === 0
+	: info.windowId === tab.windowId
+) && window.location.reload(); }
+Tabs.onActivated.addListener(reload);
+WebNavigation.onCommitted.addListener(reload); // actual url changes (Tabs.onUpdated) would be correct, but might be to annoying
+window.addEventListener('unload', () => {
+	Tabs.onActivated.removeListener(reload);
+	WebNavigation.onCommitted.removeListener(reload);
+});
 
 }); })(this);

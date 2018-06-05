@@ -108,8 +108,8 @@ const model = {
 			},
 		},
 	},
-	advanced: {
-		title: 'Advanced',
+	internal: {
+		title: 'Internal',
 		expanded: false,
 		hidden: !isBeta,
 		description: `Proceed at your own risk`,

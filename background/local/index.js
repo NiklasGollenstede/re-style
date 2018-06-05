@@ -1,6 +1,4 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { manifest, },
-	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/native-ext/': Native,
 	'common/options': options,
@@ -27,14 +25,14 @@ class LocalStyle extends Style {
 
 	/// creates a new `.css` file in the local folder
 	static async createStyle(name, file) {
-		if (!native) { throw new Error(`Can only write files if Development mode is enabled`); }
+		if (!native) { throw new Error(`Can only write files if NativeExt is set up and Development mode is enabled`); }
 		const path = options.local.children.folder.value.replace(/([\\/])?$/, _=>_ || '/') + name;
 		(await native.createStyle(path, file)); return path;
 	}
 
 	/// opens a `.css` file in the local folder with the systems default editor
 	static async openStyle(name) {
-		if (!native) { throw new Error(`Can only write files if Development mode is enabled`); }
+		if (!native) { throw new Error(`Can only open files if NativeExt is set up and Development mode is enabled`); }
 		const path = options.local.children.folder.value.replace(/([\\/])?$/, _=>_ || '/') + name;
 		(await native.openStyle(path)); return path;
 	}
@@ -52,36 +50,42 @@ class LocalStyle extends Style {
 
 //// start implementation
 
-let native = null/*Port*/; const styles = new Map/*<id, LocalStyle>*/; let exclude = null/*RegExp*/;
-let active = options.local.value; options.local.onChange(async ([ value, ]) => { try { (await (value ? enable() : disable())); } catch (error) { reportError(error); } });
-let unloading = false; global.addEventListener('unload', () => (unloading = true));
-
-if (active) { enable(true).catch(reportError); } else { if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } else { global.__startupSyncPoint__ = () => null; } }
+let native = null/*exports*/, onSpawn, waiting;
+const styles = new Map/*<id, LocalStyle>*/; let exclude = null/*RegExp*/;
+options.local.children.folder.onChange(async () => {
+	if (active) { try { disable(); (await enable()); } catch (error) { reportError(error); } }
+});
+let active = options.local.value; options.local.onChange(async ([ value, ]) => {
+	try { (await (value ? enable() : disable())); } catch (error) { reportError(error); }
+});
+if (active) { enable(true).catch(reportError); } else { letRemoteProceed(); }
 
 // reads the local dir and starts listening for changes of it or the chrome/ dir
 async function enable(init) {
 	if (active && !init) { return; } active = options.local.value = true;
 
-	if (!(await Native.test())) {
-		reportError(`NativeExt unaviable`, `${manifest.name} could not connect to it's native counterpart. To use local styles, please follow the setup instructions.`);
-		disable(); openView('setup'); return;
-	}
+	if (!(await Native.getApplicationName({ stale: true, }))) { {
+		reportError('Set up NativeExt', `Loading local styles requires NativeExt, but it is not installed or not set up correctly.`);
+		!waiting && (waiting = Native.getApplicationName({ blocking: true, }).then(() => enable()));
+		active = false; letRemoteProceed();
+	} return; } waiting = null;
 
 	// console.log('enable local styles');
 	exclude = new RegExp(options.local.children.exclude.value || '^.^');
-	native = (await Native.require(
-		require.resolve('./native'),
-		{ onDisconnect: () => global.setTimeout(() => {
-			!unloading && active && reportError('Connection to native extension lost');
-			// TODO: show permanent notification with option to restart
-		}, 20), },
-	));
+	const files = (await Native.on((onSpawn = async process => {
+		native = (await process.require(require.resolve('./native')));
 
-	const files = (await native.readStyles(options.local.children.folder.value, onCange));
+		if (options.local.children.chrome.value) { debounceIdle(() => {
+			files && active && native && native.watchChrome(onChromeChange);
+		}, 2500)(); }
 
-	if (files === null) { return void reportError(`Can't read local dir`,
-		`The folder "${options.local.children.folder.value}" does not exist of can not be read. To use local styles, create the folder or change it in the options.`
-	); }
+		return native.readStyles(options.local.children.folder.value, onCange);
+	})));
+
+	if (files === null) { {
+		Native.on.removeListener(onSpawn); active = false; letRemoteProceed();
+		reportError(`Can't read local dir`, `The folder "${options.local.children.folder.value}" does not exist or can not be read. To use local styles, create the folder or change it in the options.`);
+	} return; }
 
 	// console.log('got local styles', files);
 	(await Promise.all(
@@ -102,11 +106,16 @@ async function enable(init) {
 	}
 
 	styles.forEach(style => { try { style.disabled = false; } catch (error) { reportError(`Failed to add local style`, error); } });
+}
 
-	if (!options.local.children.chrome.value) { return; }
+function disable() {
+	options.local.value = false; if (!active) { return; } active = false;
+	// console.log('disable local styles');
+	Array.from(styles.values(), _=>_.destroy()); styles.clear();
 
-	(await new Promise(done => debounceIdle(done, 2500)()));
-	native.watchChrome(onChromeChange);
+	native && native.release(onCange);
+	native && native.release(onChromeChange);
+	Native.on.removeListener(onSpawn); native = null;
 }
 
 // called when a .css file in the local dir was actually changed
@@ -180,13 +189,11 @@ async function onChromeChange(path, css) { try {
 	})));
 } catch (error) { console.error('Error in fs.watch handler', error); } }
 
-function disable() {
-	options.local.value = false; if (!active) { return; } active = false;
-	// console.log('disable local styles');
-	Array.from(styles.values(), _=>_.destroy()); styles.clear();
-	native && native.release(onCange);
-	Native.unref(native); native = null;
-}
+function letRemoteProceed() { if (global.__startupSyncPoint__) {
+	global.__startupSyncPoint__();
+} else {
+	global.__startupSyncPoint__ = () => null;
+} }
 
 return LocalStyle;
 

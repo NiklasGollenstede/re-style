@@ -1,10 +1,8 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, rootUrl, },
-	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/utils/': { reportError, },
 	'node_modules/web-ext-utils/utils/event': { setEvent, },
 	'node_modules/native-ext/': Native,
-	'node_modules/es6lib/functional': { debounce, },
 	'node_modules/regexpx/': RegExpX,
 	'common/options': options,
 	'../util': { debounceIdle, },
@@ -24,7 +22,7 @@ class ChromeStyle {
 		// that means they are pretty useless unless they are !important ==> add that to all rules
 		this.chrome  = (chrome  || '').toString({ minify: false, important: true, namespace: false, }).trim().replace(/\r\n?/g, '\n');
 		this.content = (content || '').toString({ minify: false, important: true, namespace: false, }).trim().replace(/\r\n?/g, '\n');
-		writeStyles();
+		applyStyles();
 	}
 
 	static get changed() { return changed; }
@@ -33,13 +31,13 @@ class ChromeStyle {
 		if (!styles.has(this)) { return; }
 		styles.delete(this);
 		this.code = null;
-		writeStyles();
+		applyStyles();
 	}
 
 	toJSON() { return { path: this.path, chrome: this.chrome, content: this.content, }; }
 
 	static fromJSON({ path, chrome, content, }) {
-		// writeStyles(); // this is only used to load styles after a restart. This style should not have changed since it was last written.
+		// applyStyles(); // this is only used to load styles after a restart. This style should not have changed since it was last written.
 		return new ChromeStyle(path, chrome, content);
 	}
 
@@ -78,24 +76,23 @@ function extract(file) {
 	return (rExtract.exec(file) || [ '', ])[0].replace(/^\n?.*\n/, '').replace(/\n.*\n?$/, '');
 }
 
-// `load` tries to require the ./native module in node.js, returns `false` if that fails
-// `unload` releases the module after a while to allow node.js to quit
-let native = null; const load = async () => {
-	if (native) { return native; }
-	if (!(await Native.test())) {
-		reportError(`NativeExt unaviable`, `${manifest.name} could not connect to it's native counterpart. To use chrome styles, please follow the setup instructions.`);
-		active = options.chrome.value = false; openView('setup'); return null;
-	}
-	return (native = (await Native.require(require.resolve('./native'))));
-}, unload = debounce(() => {
-	Native.unref(native); native = null;
-}, 60e3);
 
-// `writeStyles` actually writes the styles, but not to frequently and only if `options.chrome` enabled
-let current = null, active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; writeStyles(!value); });
-const writeStyles = debounceIdle(async (clear) => { try {
+// `applyStyles` actually writes the styles, but not to frequently and only if `options.chrome` enabled
+let active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; applyStyles(!value); });
+const applyStyles = debounceIdle(async (clear) => {
+	if (!(active || clear)) { return; } // this shouldn't be possible
+	if (clear && !current) { return; } // witched off but didn't work before
 
-	if (!active && (!clear || !current)) { return; } if (!(await load())) { return; }
+	Native.getApplicationName({ stale: true, }).then(name => !name
+		&& reportError('Set up NativeExt', `Applying chrome styles requires NativeExt, but it is not installed or not set up correctly.`)
+	);
+
+	Native.do(writeStyles); // deduplicates calls (until started)
+}, 1e3);
+
+let current = null; async function writeStyles(process) { try {
+	let clear; if (!active) { if (current) { clear = true; } { return; } }
+
 	const sorted = clear ? null : Array.from(styles).sort((a, b) => a.path < b.path ? -1 : 1);
 
 	// TODO: this throws all @namespace declarations into a single file. Is that even supposed to work? Do later (default) declarations overwrite earlier ones?
@@ -108,21 +105,18 @@ const writeStyles = debounceIdle(async (clear) => { try {
 		).join('\n')) + suffix
 	));
 
-	if (!current) {
-		current = (await native.read());
+	const native = (await process.require(require.resolve('./native')));
+	if (!current) { current = (await native.read()); {
 		Object.keys(current).forEach(key => {
 			current[key] = extract(current[key].replace(/\r\n?/g, '\n'));
 		});
-	}
-
+	} }
 	(await native.write(files, rExtractSource));
 
 	changed = Object.entries((await current)).some(([ key, current, ]) => data[key] !== current);
-
 	fireWritten([ changed, ]);
-} catch (error) {
-	reportError(`Failed to write chrome styles`, error);
-} finally { unload(); } }, 1e3);
+
+} catch (error) { reportError(`Failed to write chrome styles`, error); } }
 
 
 return ChromeStyle;

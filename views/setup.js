@@ -1,6 +1,6 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/es6lib/dom': { saveAs, },
-	'node_modules/native-ext/install': { script, download, },
+	'node_modules/web-ext-utils/browser/version': { current: browser, },
+	'node_modules/native-ext/': Native,
 }) => async window => { const { document, } = window;
 
 document.body.innerHTML = `
@@ -8,28 +8,46 @@ document.body.innerHTML = `
 		:root { font-family: Segoe UI, Tahoma, sans-serif; }
 		body { margin: 20px; }
 		code { padding: 2px 3px; border-radius: 3px; }
-		body:not(.unix) .unix-only { display: none; }
+		button {
+			color: white; background-color: black;
+			border: 1px solid white; border-radius: 3px;
+			outline: none; padding: 2px 7px;
+			height: 25px; font-size: 15px;
+		}
+		#todo:not(.active), #done:not(.active) { display: none; }
+		p { margin: .4em -.5em .2em; padding: .1em .5em 0.3em; } #error { background: #7a3300; }
 	</style>
-	<h1>Setup <small>(optional)</small></h1>
-	To load local styles and apply styles to the browser UI of Firefox, you have to install an additional application and allow reStyle to connect to it.<br>
-	To do so, please follow these steps:
-	<ol>
-		<li><a id="download-bin" download><b>Download</b></a> and
-			execute <a href="https://github.com/NiklasGollenstede/native-ext" target="_blank">NativeExt</a>.
-			After the installation, you should get a success message.</li>
-		<li><a href id="save-script"><b>Save</b></a><span class="unix-only">, extract</span>
-			and run <a id="show-script" href target="_blank">this script</a>.
-			After dismissing some security warnings, you should see another a success message.</li>
-		<li>Done! you can now enable <a href="#options#.chrome">UI Styles</a>
-			and the <a href="#options#.local">Development Mode</a> in the options.</li>
-	</ol>
-`; // TODO: on mac, open with 'Archive Utility', ctrl+click `add ${manifest.name}.command`, 'Open' -> 'Open'
+	<h1>NativeExt Setup</h1>
+	<div id=todo class=active>
+		<p>To load local styles and apply styles to the browser UI of Firefox, reStyle needs access to the NativeExt extension.</p>
+		<p>Please <a href id=extension target=_blank>install</a> the NativeExt extension and follow its setup instructions,
+			then click this <button id=request>Request Permission</button> button.</p>
+		<p id=error style="display: none">Error: <span id=message></span></p>
+	</div><div id=done>
+		<p>It seems you are all set!</p>
+		<p>You can now use <a href="#options#.chrome">UI Styles</a>
+			and enable the <a href="#options#.local">Development Mode</a> in the options.</p>
+		<p><small><a href id=instructions>Show instructions</a></small></p>
+	</div>
+`;
 
-document.querySelector('#download-bin').href = download.direct;
-const show = document.querySelector('#show-script'), save = document.querySelector('#save-script');
-save.onclick = e => { if (!e.button) { saveAs.call(window, script.url, script.name); e.preventDefault(); } };
-show.href = window.URL.createObjectURL(new window.Blob([ '<code><pre>', script.text, '</pre></code>', ], { type: 'text/html', }));
-show.title = script.text;
-!(/windows/i).test(window.navigator.oscpu) && document.body.classList.add('unix');
+const todo = document.querySelector('#todo'), done = document.querySelector('#done');
+function show(section) { document.querySelectorAll('.active').forEach(_=>_.classList.remove('active')); section.classList.add('active'); }
+if ((await Native.getApplicationName({ stale: null, }))) { show(done); }
+document.querySelector('#instructions').onclick = e => { if(!e.button) { show(todo); e.preventDefault(); } };
+
+document.querySelector('#extension').href = Native.extensionInstallPage(browser);
+
+document.querySelector('#request').onclick = async e => { if(!e.button) { try {
+	const reply = (await Native.requestPermission({
+		message: `reStyle needs access to the NativeExt to load local styles and apply styles to the browser UI of Firefox.`,
+	})); if (reply.failed) { throw new Error(reply.message); }
+	show(done);
+	document.querySelector('#error').style.display = 'none';
+	document.querySelector('#message').textContent = '';
+} catch (error) {
+	document.querySelector('#error').style.display = 'block';
+	document.querySelector('#message').textContent = error.message;
+} } };
 
 }); })(this);
