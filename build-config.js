@@ -54,6 +54,7 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'web-ext-utils/utils/event.js',
 		'web-ext-utils/utils/files.js',
 		'web-ext-utils/utils/index.js',
+		'web-ext-utils/utils/notify.js',
 		'web-ext-utils/utils/semver.js',
 	];
 

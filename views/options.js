@@ -1,7 +1,7 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
-	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/es6lib/dom': { createElement, writeToClipboard, },
 	'background/remote/': RemoteStyle,
 	'background/remote/map-url': mapUrl,
@@ -37,7 +37,7 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 	case 'export': {
 		const list = Array.from(RemoteStyle, ([ , style, ]) => style.url + style.options.query.value.replace(/^\??(?=.)/, '?'));
 		(await writeToClipboard({ 'text/plain': list.join('\n'), }));
-		reportSuccess('Copied', `The list of ${list.length} URLs has been put into your clipboard`);
+		notify.success('Copied', `The list of ${list.length} URLs has been put into your clipboard`);
 	} break;
 	case 'import': {
 		const string = prompt('Please paste your JSON data below', '');
@@ -50,10 +50,10 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 		}))));
 
 		const added = urls.length - failed.length;
-		added > 0 && reportSuccess('Import done', `Imported ${ added } styles`);
+		added > 0 && notify.success('Import done', `Imported ${ added } styles`);
 		failed.length && (failed.length < 4
-			? reportError(`Failed to import:`, ...failed)
-			: reportError(`Failed to import:`, failed[0], failed[1], `and ${ failed.length - 2 } more styles`)
+			? notify.error(`Failed to import:`, ...failed)
+			: notify.error(`Failed to import:`, failed[0], failed[1], `and ${ failed.length - 2 } more styles`)
 		);
 	} break;
 	case 'updateNow': {
@@ -63,15 +63,15 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 			.catch(error => { console.error(error); failed.push(style); })
 		)));
 
-		updated.length > 0 && reportSuccess('Update done', `Updated ${ updated.length } styles`);
+		updated.length > 0 && notify.success('Update done', `Updated ${ updated.length } styles`);
 		failed.length && (failed.length < 4
-			? reportError(`Failed to update:`, ...failed.map(_=>_.url))
-			: reportError(`Failed to update:`, failed[0].url, failed[1].url, `and ${ failed.length - 2 } more styles`)
+			? notify.error(`Failed to update:`, ...failed.map(_=>_.url))
+			: notify.error(`Failed to update:`, failed[0].url, failed[1].url, `and ${ failed.length - 2 } more styles`)
 		);
 	} break;
 	default: {
 		throw new Error('Unhandled command "'+ name +'"');
 	}
-} } catch (error) { reportError(error); } }
+} } catch (error) { notify.error(error); } }
 
 }); })(this);

@@ -1,7 +1,7 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { Tabs, WebNavigation, },
 	'node_modules/web-ext-utils/loader/views': { openView, },
-	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/es6lib/dom': { createElement, },
 	'background/style': Style,
 	'background/chrome/': ChromeSytle,
@@ -80,11 +80,11 @@ add.addEventListener('click', event => {
 	if (event.button) { return; }
 	const url = input.value.trim(); add.disabled = true;
 	RemoteSytle.add(url).then(() => {
-		reportSuccess(`Style added`, `from "${ url }"`);
+		notify.success(`Style added`, `from "${ url }"`);
 		input.value = ''; add.disabled = false;
 	}, error => {
 		add.disabled = false;
-		reportError(`Failed to add style from "${ url }"`, error);
+		notify.error(`Failed to add style from "${ url }"`, error);
 	}, );
 });
 
@@ -92,7 +92,7 @@ add.addEventListener('click', event => {
 /// create style button
 const create = document.querySelector('#create');
 create.addEventListener('click', async event => { try {
-	if (!options.local.value) { return void reportError(
+	if (!options.local.value) { return void notify.error(
 		`Development Mode disabled`,
 		`To create and edit Styles, Development mode has to be set up and enabled on the options page`,
 	); }
@@ -111,9 +111,9 @@ create.addEventListener('click', async event => { try {
 		name = name.slice(0, -4) +'-'+ Math.random().toString(16).slice(2) +'.css';
 		path = (await LocalStyle.createStyle(name, file));
 	}
-	reportSuccess(`Created new Style at`, path);
+	notify.success(`Created new Style at`, path);
 	LocalStyle.openStyle(name).catch(e => console.error(e));
-} catch (error) { reportError(error); } });
+} catch (error) { notify.error(error); } });
 
 
 /// active styles list
@@ -134,7 +134,7 @@ styles.forEach(appendStyle); function appendStyle(style) {
 			style.options.name.value +'',
 		]),
 		(style instanceof LocalStyle) && createElement('b', {
-			onclick() { style.show().catch(reportError); },
+			onclick() { style.show().catch(notify.error); },
 		}, [ ' 🖉 ', ]),
 		createElement('div', { className: 'includes', }, style.options.include.children.map(include => {
 			const matching = include.values.current.filter(domain => isSubDomain(domain, url.hostname));

@@ -1,5 +1,6 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/web-ext-utils/loader/views': { openView, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/native-ext/': Native,
 	'common/options': options,
 	'../chrome/': ChromeStyle,
@@ -53,19 +54,21 @@ class LocalStyle extends Style {
 let native = null/*exports*/, onSpawn, waiting;
 const styles = new Map/*<id, LocalStyle>*/; let exclude = null/*RegExp*/;
 options.local.children.folder.onChange(async () => {
-	if (active) { try { disable(); (await enable()); } catch (error) { reportError(error); } }
+	if (active) { try { disable(); (await enable()); } catch (error) { notify.error(error); } }
 });
 let active = options.local.value; options.local.onChange(async ([ value, ]) => {
-	try { (await (value ? enable() : disable())); } catch (error) { reportError(error); }
+	try { (await (value ? enable() : disable())); } catch (error) { notify.error(error); }
 });
-if (active) { enable(true).catch(reportError); } else { letRemoteProceed(); }
+if (active) { enable(true).catch(notify.error); } else { letRemoteProceed(); }
 
 // reads the local dir and starts listening for changes of it or the chrome/ dir
 async function enable(init) {
 	if (active && !init) { return; } active = options.local.value = true;
 
 	if (!(await Native.getApplicationName({ stale: true, }))) { {
-		reportError('Set up NativeExt', `Loading local styles requires NativeExt, but it is not installed or not set up correctly.`);
+		notify.error('Set up NativeExt',
+			`Loading local styles requires NativeExt, but it is not installed or not set up correctly.`,
+		).then(_=>_ && openView('setup'));
 		!waiting && (waiting = Native.getApplicationName({ blocking: true, }).then(() => enable()));
 		active = false; letRemoteProceed();
 	} return; } waiting = null;
@@ -84,7 +87,7 @@ async function enable(init) {
 
 	if (files === null) { {
 		Native.on.removeListener(onSpawn); active = false; letRemoteProceed();
-		reportError(`Can't read local dir`, `The folder "${options.local.children.folder.value}" does not exist or can not be read. To use local styles, create the folder or change it in the options.`);
+		notify.error(`Can't read local dir`, `The folder "${options.local.children.folder.value}" does not exist or can not be read. To use local styles, create the folder or change it in the options.`);
 	} return; }
 
 	// console.log('got local styles', files);
@@ -96,7 +99,7 @@ async function enable(init) {
 			styles.set(style.id, style);
 			style.disabled = true;
 			(await style.setSheet(css));
-		} catch (error) { reportError(`Failed to add local style`, path, error); } })))
+		} catch (error) { notify.error(`Failed to add local style`, path, error); } })))
 	));
 
 	if (init) { // on initial enable, sync with ../remote/
@@ -105,7 +108,7 @@ async function enable(init) {
 		delete global.__startupSyncPoint__;
 	}
 
-	styles.forEach(style => { try { style.disabled = false; } catch (error) { reportError(`Failed to add local style`, error); } });
+	styles.forEach(style => { try { style.disabled = false; } catch (error) { notify.error(`Failed to add local style`, error); } });
 }
 
 function disable() {

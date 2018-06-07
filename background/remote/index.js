@@ -1,6 +1,6 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/storage': { local: Storage, },
-	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'common/options': options,
 	'../parser': { json2css, },
 	'../style': Style,
@@ -93,13 +93,13 @@ const urlList = options.remote.children.urls.values; const styles = new Map/*<id
 			const style = (await new RemoteStyle(url, ''));
 			actions.push((await prepareUpdate(style))); // TODO: test
 		}
-	} catch (error) { reportError(`Failed to restore remote style`, url, error); } })));
+	} catch (error) { notify.error(`Failed to restore remote style`, url, error); } })));
 
 	if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } // sync with ../local/
 	else { (await new Promise((resolve, reject) => { global.__startupSyncPoint__ = resolve; require.async('../local/').catch(reject); })); }
 
 	// add all restored styles at once, so that `ChromeStyle` and `WebStyle` don't need to update multiple times
-	actions.forEach(async action => { try { (await action()); } catch (error) { reportError(`Failed to restore remote style`, error); } });
+	actions.forEach(async action => { try { (await action()); } catch (error) { notify.error(`Failed to restore remote style`, error); } });
 
 	styles.forEach(_=>_.onChanged(onChanged));
 })();
@@ -163,8 +163,8 @@ let updateTimer; options.remote.children.autoUpdate.when({ true() { updateTimer 
 	(await Promise.all((await Promise.all(
 		[ ...styles.values(), ]
 		.filter(style => !style.disabled && style.updated < before)
-		.map(style => prepareUpdate(style).catch(reportError))
-	)).map(apply => apply && apply().catch(reportError))));
+		.map(style => prepareUpdate(style).catch(notify.error))
+	)).map(apply => apply && apply().catch(notify.error))));
 	options.debug.value && console.info('remote styles updated');
 }, (
 	options.remote.children.autoUpdate.children.delay.value * 60e3 * (Math.random() + .5)

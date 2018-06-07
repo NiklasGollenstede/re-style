@@ -1,6 +1,7 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, rootUrl, },
-	'node_modules/web-ext-utils/utils/': { reportError, },
+	'node_modules/web-ext-utils/loader/views': { openView, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/web-ext-utils/utils/event': { setEvent, },
 	'node_modules/native-ext/': Native,
 	'node_modules/regexpx/': RegExpX,
@@ -84,7 +85,9 @@ const applyStyles = debounceIdle(async (clear) => {
 	if (clear && !current) { return; } // witched off but didn't work before
 
 	Native.getApplicationName({ stale: true, }).then(name => !name
-		&& reportError('Set up NativeExt', `Applying chrome styles requires NativeExt, but it is not installed or not set up correctly.`)
+		&& notify.error('Set up NativeExt',
+			`Applying chrome styles requires NativeExt, but it is not installed or not set up correctly.`,
+		).then(_=>_ && openView('setup'))
 	);
 
 	Native.do(writeStyles); // deduplicates calls (until started)
@@ -116,7 +119,7 @@ let current = null; async function writeStyles(process) { try {
 	changed = Object.entries((await current)).some(([ key, current, ]) => data[key] !== current);
 	fireWritten([ changed, ]);
 
-} catch (error) { reportError(`Failed to write chrome styles`, error); } }
+} catch (error) { notify.error(`Failed to write chrome styles`, error); } }
 
 
 return ChromeStyle;

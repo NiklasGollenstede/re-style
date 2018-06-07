@@ -2,7 +2,7 @@
 	'node_modules/web-ext-utils/browser/': { manifest, },
 	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
-	'node_modules/web-ext-utils/utils/': { reportError, reportSuccess, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/es6lib/dom': { createElement: _createElement, },
 	'background/local/': LocalStyle,
 	'background/remote/': RemoteStyle,
@@ -95,10 +95,10 @@ async function onCommand(style, _, action) { try { switch (action) {
 		const name = style.options.name.value.toLowerCase().replace(/[ .]/g, '-').replace(/[^\w-]/g, '') +'.css';
 		const path = (await LocalStyle.createStyle(name, style.code));
 		style.disabled = true;
-		reportSuccess(`Created local Style at`, path);
+		notify.success(`Created local Style at`, path);
 		LocalStyle.openStyle(name).catch(e => console.error(e));
 	} break;
 	case 'info': (await openView({ name: 'style-info', hash: style.url, }, null, { useExisting: false, })); break;
-} } catch (error) { reportError(error); } }
+} } catch (error) { notify.error(error); } }
 
 }); })(this);
