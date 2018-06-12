@@ -129,7 +129,10 @@ async function onCange(path, css) { try {
 	const style = styles.get(id);
 	if (style) { if (css) { // update
 		const changed = (await style.setSheet(css));
-		console.info(changed ? `File ${path} was changed on disk, reloaded style "${style.options.name.value}"` : `Already knew changes in ${path}`);
+		console.info(changed
+			? `File ${path} was changed on disk, reloaded style "${style.options.name.value}"`
+			: `Already knew changes in ${path}` // happens after changes caused by `onChromeChange`
+		);
 	} else { // delete
 		console.info(`File ${path} was deleted, removing style "${style.options.name.value}"`);
 		style.destroy(); styles.delete(id);
@@ -144,37 +147,38 @@ async function onChromeChange(path, css) { try {
 	css && (css = css.replace(/\r\n?/g, '\n'));
 	if (!css) { return; } // file deleted
 	console.info(`${path.split(/\\|\//g).pop()} changed, applying changes to local files in ${options.local.children.folder.value} (if any)`);
-	const isChrome = (/[\\/]userChrome[.]css$/).test(path);
+	const type = (/[\\/]userChrome[.]css$/).test(path) ? 'chrome' : 'content';
 
 	// for each file segment ...
 	(await Promise.all(Object.entries(ChromeStyle.extractFiles(css)).map(async ([ path, css, ]) => {
 		const id = (await Style.url2id(path));
-		const style = styles.get(id); if (!style) { return; }
-		if (style.chrome[isChrome ? 'chrome' : 'content'] === css) { return; }
-		// the segment of the style actually changed
+		const style = styles.get(id), old = style && style.chrome.sheets[type];
+		if (!old) { console.error(`Unexpected chrome style section ${id}`); return; }
+		if (style.chrome[type] === css) { return; } // the segment of the style actually changed
+		const oldSections = old.sections.slice();
 
 		const parts = [ style.code, ];
 		const now = Sheet.fromCode(css.replace(/\/\*rS\*\/!important/g, ''), { onerror: error => { throw error; }, });
-		const old = style.sheet, oldSections = old.sections.slice();
+		!now.sections[0].tokens.length && now.sections.shift(); // should not have any global code anyway
 
 		let lastPos = 0; for (const section of now.sections) { // for each `@document` section
 			const oldSection = oldSections.find(old => // find old section with same includes
-				   sameArray(section.urls, old.urls)
-				&& sameArray(section.urlPrefixes, old.urlPrefixes)
-				&& sameArray(section.domains, old.domains)
-				&& sameArray(section.regexps, old.regexps)
+				   sameArray(section.urls, old.urls, 'value')
+				&& sameArray(section.urlPrefixes, old.urlPrefixes, 'value')
+				&& sameArray(section.domains, old.domains, 'value')
+				&& sameArray(section.regexps, old.regexps, 'value')
 			);
-			if (!oldSection) { console.error(`can't find old section for`, section.code); return; }
+			if (!oldSection) { console.error(`can't find old section for`, { code: section.tokens.join(''), }); return; }
 			oldSections.splice(oldSections.indexOf(oldSection), 1); // only use each old section once
 			if (sameArray(oldSection.tokens, section.tokens)) { continue; } // section wasn't changed
 			if (!oldSection.location) { console.warn(`can't apply changes to global CSS`); continue; }
 
 			// "un-apply" any user-overwritten options
 			const newSetction = section.cloneWithoutIncludes();
-			const prefs = { }; style.options.children.options.children.forEach(
+			const prefs = { }; style.options.options.children.forEach(
 				({ name, default: value, values: { isSet, }, model: { unit, }, }) =>
 				isSet && (prefs[name] = value + unit)
-			); newSetction.setOptions(prefs);
+			); Object.keys(prefs).length && newSetction.setOptions(prefs);
 
 			// write the changed section
 			parts.splice( // TODO: this requires the sections to stay in the same order
@@ -200,11 +204,17 @@ function letRemoteProceed() { if (global.__startupSyncPoint__) {
 
 return LocalStyle;
 
-function sameArray(a, b) {
+function sameArray(a, b, key) {
 	if (a === b) { return true; }
 	if (a.length !== b.length) { return false; }
-	for (let i = 0, l = a.length; i < l; ++i) {
-		if (a[i] !== b[i]) { return false; }
+	if (key == null) {
+		for (let i = 0, l = a.length; i < l; ++i) {
+			if (a[i] !== b[i]) { return false; }
+		}
+	} else {
+		for (let i = 0, l = a.length; i < l; ++i) {
+			if (a[i] !== b[i] && (!a[i] || !b[i] || a[i][key] !== b[i][key])) { return false; }
+		}
 	}
 	return true;
 }

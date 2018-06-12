@@ -23,6 +23,7 @@ class ChromeStyle {
 		// that means they are pretty useless unless they are !important ==> add that to all rules
 		this.chrome  = (chrome  || '').toString({ minify: false, important: true, namespace: false, }).trim().replace(/\r\n?/g, '\n');
 		this.content = (content || '').toString({ minify: false, important: true, namespace: false, }).trim().replace(/\r\n?/g, '\n');
+		this.sheets = { chrome, content, };
 		applyStyles();
 	}
 
@@ -42,11 +43,11 @@ class ChromeStyle {
 		return new ChromeStyle(path, chrome, content);
 	}
 
-	static extractFiles(file) {
-		const files = { }; extract(file).split(infix).slice(0, -1).forEach(css => {
+	static extractFiles(data) {
+		const files = { }; extract(data).split(infix).slice(0, -1).forEach(css => {
 			let path; css = css.trim().replace(/^\/\* (.*) \*\/\n/, (_, s) => ((path = s), ''));
-			if (!path) { console.error('Failed to extract file name from code chunk', css); return; }
-			files[path] = css;
+			if (!path) { console.error('Failed to extract file name from code chunk', css); }
+			else { files[path] = css; }
 		}); return files;
 	}
 
@@ -67,15 +68,13 @@ const prefix = `\n/* Do not edit this section of this file (outside the Browser 
 // This terminator sequence closes open strings, comments, blocks and declarations.
 // The media query seems to "reset" the parser (and doesn't do anything itself).
 // At the same time it serves as split point when the changes to the files are applied to the local edit files.
-const infix  = `\n/*"*//*'*/;};};};};};}@media not all {} /* reset sequence, do not edit this line */ /*NEXT:${uuid}*/`;
+const infix  = `\n/*"*//*'*/;};};};};};}@media not all {} /* reset sequence, do not edit this line */ /*NEXT:${uuid}*/\n`;
 const suffix = `\n/*END:${uuid}*/\n`;
 // extracts reStyles section from the files. This allows other content to coexist with reStyles managed code
-const rExtract = RegExpX('n')`
-	(^|\n) .* \/\*START:${uuid}\*\/ [^]* \/\*END:${uuid}\*\/ (\n|$)
+const rExtract = RegExpX`
+	(?:^|\n) .* \/\*START:${uuid}\*\/ .*\n ([^]*) \n.*\/\*END:${uuid}\*\/ (?:\n|$)
 `, rExtractSource = rExtract.source.replace(/\\n/g, String.raw`(?:\r\n?|\n)`);
-function extract(file) {
-	return (rExtract.exec(file) || [ '', ])[0].replace(/^\n?.*\n/, '').replace(/\n.*\n?$/, '');
-}
+function extract(file) { return (rExtract.exec(file) || [ '', '', ])[1]; }
 
 
 // `applyStyles` actually writes the styles, but not to frequently and only if `options.chrome` enabled

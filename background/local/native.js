@@ -35,7 +35,7 @@ module.exports = {
 	async writeStyle(path, css) {
 		path = normalize(path); if (
 			!(/\.css$/).test(path) || (/\/\./).test(path)
-			|| !(await get(FS.stat, path, FS.constants.W_OK).catch(_=>null)) // writable
+			|| !(await get(FS.access, path, FS.constants.W_OK).then(_=>1,_=>0)) // writable
 		) { throw new Error(`Can't write to "${path}"`); }
 		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), 'utf-8'));
 	},

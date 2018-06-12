@@ -43,8 +43,8 @@ class Style {
 	get id() { return Self.get(this).id; }
 	/// String-representation of the current `.sheet`, before any processing.
 	get code() { return Self.get(this).code; }
-	/// `Sheet` as a result of `.setSheet()`.
-	get sheet() { console.warn('deprecated'); return Self.get(this)._sheet; }
+	/// Cached `Sheet` as a result of `.setSheet()`, if available (which it is not for restored styles).
+	get sheet() { console.warn('deprecated'); return Self.get(this)._sheet; } // will be removed
 	/// `ChromeStyle` if `.sheet` has sections that require one.
 	get chrome() { return Self.get(this).chrome; }
 	/// `WebStyle` if `.sheet` has sections that require one.
