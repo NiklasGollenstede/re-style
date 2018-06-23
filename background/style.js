@@ -8,6 +8,7 @@
 	'./chrome/': ChromeStyle,
 	'./web/': WebStyle,
 	'./parser': Sheet,
+	normalizeMeta,
 }) => {
 
 /**
@@ -190,7 +191,7 @@ class _Style {
 	/// applies the `._sheet?` to the UI and browser
 	update() {
 		if (this.disabled) { this.parseIncludes(); this._fireChanged(); return; }
-		const sheet = this._sheet = this._sheet || Sheet.fromCode(this.code);
+		const sheet = this._sheet = this._sheet || normalizeMeta(Sheet.fromCode(this.code), this.url);
 		this.updateName(); this.meta = deepFreeze(sheet.meta);
 		this.parseIncludes(); this.parseSections();
 		const { dynamicIncludes, dynamicOptions, } = this.rebuildOptions();
@@ -216,7 +217,7 @@ class _Style {
 
 	/// refreshes `.includes` from `._sheet?`
 	parseIncludes() {
-		const { sections, } = this._sheet = this._sheet || Sheet.fromCode(this.code);
+		const { sections, } = this._sheet = this._sheet || normalizeMeta(Sheet.fromCode(this.code), this.url);
 		const include = [ ]; sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
 				section[type].length && include.push(toRegExp[type](section[type].map(_=>_.value)));
@@ -227,7 +228,7 @@ class _Style {
 
 	/// refreshes `._chrome`, `._content` and `._web` from `._sheet?`
 	parseSections() {
-		const { sections, namespace, } = this._sheet = this._sheet || Sheet.fromCode(this.code);
+		const { sections, namespace, } = this._sheet = this._sheet || normalizeMeta(Sheet.fromCode(this.code), this.url);
 		const userChrome = this._chrome = [ ]; const userContent = this._content = [ ]; const webContent = this._web = [ ];
 		sections.forEach(section => {
 			const { urls, urlPrefixes, domains, regexps, } = section;
@@ -274,16 +275,11 @@ class _Style {
 	/// (re-)builds `.options.children[includes|options].children` settings branches from `this.meta`
 	rebuildOptions() {
 		const { meta, } = this;
-		const styleOptions = (branch, model, onChange) => {
+		const styleOptions = (branch, onChange) => {
 			const dynamic = this.options.children[branch].children;
 			const rules = meta[branch]; if (dynamic.rules === rules) { return dynamic; } dynamic.rules = rules;
 			dynamic.splice(0, Infinity, ...(rules || [ ]).map(rule => {
-				const root = new Options({ model: [ {
-					name: rule.name, title: rule.title,
-					description: rule.description,
-					default: rule.default,
-					...model(rule, rules),
-				}, ], prefix: 'style.'+ this.id +'.'+ branch, storage, });
+				const root = new Options({ model: [ rule, ], prefix: 'style.'+ this.id +'.'+ branch, storage, });
 				const option = root.children[0]; parent.set(option, root);
 				option.onChange(() => {
 					this.disabled = false;
@@ -296,15 +292,8 @@ class _Style {
 			return dynamic;
 		};
 
-		const dynamicIncludes = styleOptions('include', () => ({
-			maxLength: Infinity,
-			restrict: { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, unique: '.', },
-			input: { type: 'string', default: 'example.com', },
-		}), 'applyIncludes');
-		const dynamicOptions = styleOptions('options',
-			({ name: _1, title: _2, description: _3, unit = '', restrict, ...input }) => ({ unit, restrict, input, }),
-			'applyOptions'
-		);
+		const dynamicIncludes = styleOptions('include', 'applyIncludes');
+		const dynamicOptions = styleOptions('options', 'applyOptions');
 		return { dynamicIncludes, dynamicOptions, };
 	}
 
@@ -338,7 +327,7 @@ class _Style {
 		const { _sheet: { sections, }, } = this;
 		const dynamicOptions = this.options.children.options.children;
 		const prefs = { }; dynamicOptions.forEach(
-			({ name, value, model: { unit, }, }) => (prefs[name] = value + unit)
+			({ name, value, model: { unit, }, }) => (prefs[name] = value + (unit || ''))
 		);
 		sections.forEach(_=>_.setOptions(prefs));
 	}

@@ -1,5 +1,6 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/version': { current: browser, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/native-ext/': Native,
 }) => async window => { const { document, } = window;
 
@@ -39,13 +40,16 @@ document.querySelector('#instructions').onclick = e => { if(!e.button) { show(to
 document.querySelector('#extension').href = Native.extensionInstallPage(browser);
 
 document.querySelector('#request').onclick = async e => { if(!e.button) { try {
+	notify.info('Requesting permission', `To proceed, please click "Allow" in the popup window.`);
 	const reply = (await Native.requestPermission({
 		message: `reStyle needs access to the NativeExt to load local styles and apply styles to the browser UI of Firefox.`,
 	})); if (reply.failed) { throw new Error(reply.message); }
 	show(done);
+	notify.success('Access granted');
 	document.querySelector('#error').style.display = 'none';
 	document.querySelector('#message').textContent = '';
 } catch (error) {
+	notify.error(error);
 	document.querySelector('#error').style.display = 'block';
 	document.querySelector('#message').textContent = error.message;
 } } };

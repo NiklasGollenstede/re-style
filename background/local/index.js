@@ -61,6 +61,7 @@ let active = options.local.value; options.local.onChange(async ([ value, ]) => {
 });
 if (active) { enable(true).catch(notify.error); } else { letRemoteProceed(); }
 
+
 // reads the local dir and starts listening for changes of it or the chrome/ dir
 async function enable(init) {
 	if (active && !init) { return; } active = options.local.value = true;
@@ -121,6 +122,7 @@ function disable() {
 	Native.on.removeListener(onSpawn); native = null;
 }
 
+
 // called when a .css file in the local dir was actually changed
 async function onCange(path, css) { try {
 	css && (css = css.replace(/\r\n?/g, '\n'));
@@ -142,15 +144,22 @@ async function onCange(path, css) { try {
 	} // else deleted non-existing
 } catch (error) { console.error('Error in fs.watch handler', error); } }
 
+
 // called when `userChrome`/`Content.css` was changed
 async function onChromeChange(path, css) { try {
+	// TODO: if local styles disabled return
 	css && (css = css.replace(/\r\n?/g, '\n'));
-	if (!css) { return; } // file deleted
-	console.info(`${path.split(/\\|\//g).pop()} changed, applying changes to local files in ${options.local.children.folder.value} (if any)`);
+	css = ChromeStyle.extractSection(css);
+	if (!css) { return; } // file deleted / section cleared
 	const type = (/[\\/]userChrome[.]css$/).test(path) ? 'chrome' : 'content';
+	// TODO: expose `loaded` and `written` on ChromeStyle, then:
+	// if (ChromeStyle.written[type] === css) { return; } // own write update
+	// ChromeStyle.applied[type] = css; // assume update by browser, which means these styles are the actually loaded ones
+	// // TODO: cause `ChromeStyle.onWritten` to fire (even if there are no changes to any styles), e.g. by calling a `.forceWrite()`, to make sure the badge is updated
+	console.info(`${path.split(/\\|\//g).pop()} ${type} file changed, applying changes to local files in ${options.local.children.folder.value} (if any)`);
 
 	// for each file segment ...
-	(await Promise.all(Object.entries(ChromeStyle.extractFiles(css)).map(async ([ path, css, ]) => {
+	(await Promise.all(Object.entries(ChromeStyle.parseFiles(css)).map(async ([ path, css, ]) => {
 		const id = (await Style.url2id(path));
 		const style = styles.get(id), old = style && style.chrome.sheets[type];
 		if (!old) { console.error(`Unexpected chrome style section ${id}`); return; }
@@ -177,7 +186,7 @@ async function onChromeChange(path, css) { try {
 			const newSetction = section.cloneWithoutIncludes();
 			const prefs = { }; style.options.options.children.forEach(
 				({ name, default: value, values: { isSet, }, model: { unit, }, }) =>
-				isSet && (prefs[name] = value + unit)
+				isSet && (prefs[name] = value + (unit || ''))
 			); Object.keys(prefs).length && newSetction.setOptions(prefs);
 
 			// write the changed section

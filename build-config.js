@@ -23,6 +23,8 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 	files.node_modules = [
 		'es6lib/dom.js',
 		'es6lib/functional.js',
+		'marked/marked.min.js',
+		'marked/LICENSE.md',
 		'multiport/index.js',
 		'native-ext/index.js',
 		'native-ext/init.node.js',
@@ -56,6 +58,8 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'web-ext-utils/utils/index.js',
 		'web-ext-utils/utils/notify.js',
 		'web-ext-utils/utils/semver.js',
+		'yamljs/dist/yaml.min.js',
+		'yamljs/LICENSE',
 	];
 
 };

@@ -1,5 +1,6 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/regexpx/': RegExpX,
+	'shim!node_modules/yamljs/dist/yaml.min:YAML': YAML,
 }) => {
 
 /**
@@ -57,8 +58,14 @@ class Sheet {
 		).join(minify ? '' : '\n\n');
 	}
 
+	/// Copies the current values of all options occurring in this `Sheet`s `.sections` to `get`
+	/// and replaces them by the values in `set`. Works with { [name]: value, } objects.
+	/// If either object is not provided, the read and/or set is skipped. Returns `get`.
+	/// Only writes values to `get` that are not defined yet, i.e. always reads the first occurrence of any option.
+	swapOptions(get, set) { this.sections.forEach(_=>_.swapOptions(get, set)); return get; } // TODO: skip global section
+
 	/// Gets the currently set / default options as a { [name]: value, } object.
-	getOptions() { return Sheet_getOptions.call(this); }
+	getOptions() { return this.swapOptions({ }, null); }
 
 	toJSON() { return Object.assign({ }, this); }
 
@@ -82,18 +89,24 @@ class Sheet {
 class Section {
 
 	/// Constructs a `Sheet` from its components.
-	constructor(urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ], tokens = [ ], location = null) {
+	constructor(urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ], tokens = [ ], location = null, dynamic = [ ]) {
 		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
-		this.tokens = tokens; this.location = location; this.dynamic = [ ];
+		this.tokens = tokens; this.location = location; this.dynamic = dynamic;
 	}
 
-	cloneWithoutIncludes() { return new Section([ ], [ ], [ ], [ ], this.tokens, this.location); }
+	cloneWithoutIncludes() { return new Section([ ], [ ], [ ], [ ], this.tokens, this.location, [ ]); }
 
 	/// Returns `true` iff the `Section`s code consists of only comments and whitespaces.
 	isEmpty() { return !this.tokens.some(_=>!(/^\s*$|^\/\*/).test(_)); }
 
+	/// Copies the current values of all options occurring in this `Section`s `.tokens` to `get`
+	/// and replaces them by the values in `set`. Works with { [name]: value, } objects.
+	/// If either object is not provided, the read and/or set is skipped. Returns `get`.
+	/// Only writes values to `get` that are not defined yet, i.e. always reads the first occurrence of any option.
+	swapOptions(get, set) { return Section_swapOptions.call(this, get, set); }
+
 	/// Applies the user set options as a { [name]: value, } object to this `Section`s `.tokens`.
-	setOptions(prefs) { return Section_setOptions.call(this, prefs); }
+	setOptions(prefs) { return this.swapOptions(null, prefs); }
 
 	/**
 	 * Casts the `Section` (back) into a string.
@@ -111,8 +124,8 @@ class Section {
 
 	toJSON() { return Object.assign({ }, this); }
 
-	static fromJSON({ urls, urlPrefixes, domains, regexps, tokens, }) {
-		return new Section(urls, urlPrefixes, domains, regexps, tokens);
+	static fromJSON({ urls, urlPrefixes, domains, regexps, tokens, dynamic, }) {
+		return new Section(urls, urlPrefixes, domains, regexps, tokens, dynamic);
 	}
 }
 Sheet.Section = Section;
@@ -126,9 +139,10 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 		while (lastIndex < index) { lastLoc += tokens[lastIndex++].length; } return lastLoc;
 	}
 
-	const tokens = tokenize(css || ''); let namespace = '';
 	const globalTokens = [ ], sections = [ new Section([ ], [ ], [ ], [ ], globalTokens), ];
+	const meta = { }, self = new Sheet(meta, sections, '');
 
+	const tokens = tokenize(css || '');
 	loop: for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
 		case '@namespace': {
 			const end = tokens.indexOf(';', index);
@@ -136,7 +150,7 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 			const parts = tokens.slice(index + 1, end).filter(_=>!(/^\s*$|^\/\*/).test(_));
 			switch (parts.length) {
 				case 0: break; // or throw?
-				case 1: namespace = parts[0]; break;
+				case 1: self.namespace = parts[0]; break;
 				default: globalTokens.push('@namespace', ...tokens.slice(index + 1, end), ';');
 			}
 			index = end +1;
@@ -174,12 +188,12 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 		}
 	} }
 
-	const meta = { }, self = new Sheet(meta, sections, namespace);
-
 	const metaBlock = globalTokens.find(token =>
-		(/^\/\*[*!]*\s*==+[Uu]ser-?[Ss]tyle==+\s/).test(token)
+		(/^\/\*[*!]*\s*==+[Uu]ser-?[Ss]tyle==+\s*?\n/).test(token)
 	); if (metaBlock) {
-		Object.assign(meta, parseMetaBlock(metaBlock, onerror));
+		try { Object.assign(meta, YAML.parse(
+			metaBlock.replace(/^.*\n|\s*\*\//g, '').replace(/^ ?\*? ?/gm, '') // strip comment frame
+		)); } catch (error) { onerror(error); }
 	} else {
 		const where = globalTokens.slice(0, 5).concat(sections[1] ? sections[1].tokens.slice(0, 4) : [ ]);
 		rsFuzzyTitle.some(exp => where.some(token => {
@@ -187,17 +201,6 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 			const match = exp.exec(token);
 			return match && (meta.name = match[1].replace(/ \(?$/, ''));
 		}));
-	}
-	if (meta.options) {
-		const defaults = self.getOptions();
-		meta.options.forEach(option => { if (option.name in defaults) {
-			const value = defaults[option.name];
-			option.default = option.unit && value.endsWith(option.unit)
-			? value.slice(0, -option.unit.length) : value;
-			option.restrict && option.restrict.type === 'number' && (option.default -= 0);
-			option.type === 'boolInt' && (option['on' in option ? 'off' : 'on'] = value);
-		} else { option.name = null; } });
-		meta.options = meta.options.filter(_=>_.name);
 	}
 
 	return self;
@@ -235,7 +238,7 @@ function json2css(json) {
 		urls = urls.map(toObj); urlPrefixes = urlPrefixes.map(toObj);
 		domains = domains.map(toObj); regexps = regexps.map(toObj);
 
-		return Section_toString.call({ urls, urlPrefixes, domains, regexps, dynamic: [ ], tokens: [ code, ], });
+		return Section_toString.call({ urls, urlPrefixes, domains, regexps, tokens: [ code, ], location: null, dynamic: [ ], });
 	}).join('\n\n');
 }
 
@@ -262,32 +265,28 @@ const rOptionTag = RegExpX`^
 		([a-zA-Z][\w-]+)  # name
 	\]\]\*\/              # ]]*/
 $`;
-function iterateOptions(tokens, prefs, set) {
-	// format: /*[[!<name>]]*/ <fallback> /*[[/<name>]]*/
+function Section_swapOptions(get, set) {
+	// format: /*[[!<name>]]*/<value>/*[[/<name>]]*/
+	const { tokens, } = this;
 	let start = -1, name = null;
 	for (let i = 0, l = tokens.length, token = tokens[i]; i < l; token = tokens[++i]) {
 		const match = rOptionTag.exec(token); if (!match) { continue; }
 		if (match[1] === '!') {
 			start = i; name = match[2];
 		} else {
-			if (name !== match[2] || set && !(name in prefs)) { continue; }
-			if (set) {
-				const now = tokenize(prefs[name]);
+			if (name !== match[2]) { continue; }
+			if (get && !(name in get)) {
+				get[name] = tokens.slice(start + 1, i).join('');
+			}
+			if (set && (name in set)) {
+				const now = tokenize(set[name]);
 				const old = tokens.splice(start + 1, i - start - 1, ...now);
 				i += now.length - old.length;
-			} else {
-				prefs[name] = tokens.slice(start + 1, i).join('');
 			}
 			start = -1; name = null;
 		}
 	}
-	return prefs;
-}
-function Section_setOptions(prefs) {
-	iterateOptions(this.tokens, prefs, true);
-}
-function Sheet_getOptions() {
-	return this.sections.reduce((prefs, { tokens, }) => iterateOptions(tokens, prefs, false), { });
+	return get;
 }
 
 // Splits a CSS code string into atomic parts (as far as this parser is concerned).
@@ -326,39 +325,7 @@ const rTokens = RegExpX('gns')`
 	| . # others
 `;
 
-// Forbids not CSS-escaped occurrences of `chars` in the string to match.
-const disallowSpecial = chars => RegExpX('s')`^(?:
-	  \/\* .*? \*\/             # comments
-	| (?!\/\*) [^\\"'${chars}]  # normal characters, except comment begin
-	| \\ .                      # backslash escaped anything
-	| (?<q>["'])  (?:           # quoted string, i.e.: quote
-		  (?!\k<q>) [^\\\n]         # anything except that quote or backslash
-		| \\ .                      # backslash escaped anything
-	)*? \k<q>                       # closing quote
-)*$`;
-// These RegExps decide whether a string can be pasted in a CSS sheet in different contexts
-// without breaking more than the current statement or injecting additional statements.
-// This meant help users not to mess up, not as a strict security mechanism.
-// Must still make sure () and [] are balanced.
-const rSelector = RegExpX`^(?=\s*\S[^]*[^,]$)${ disallowSpecial('{};') }`; // must not me empty or end with a comma
-const rValue = disallowSpecial(':{};');
-const rDeclarations = disallowSpecial('{}');
-const rUnitC = RegExpX('n')`(
-	  %                                   # percent
-	| cap|ch|em|ex|ic|lh|rem|rlh          # font based
-	| vh|vw|vi|vb|vmin|vmax               # viewport based
-	| px|cm|mm|Q|in|pc|pt                 # absolute lengths
-	| s|ms|hz|khz                         # time
-	| dpcm|dpi|dppx                       # resolution
-	| deg                                 # others (TODO: are there more?)
-)`, rUnit = RegExpX`^${rUnitC}$`;
-const rDimension = RegExpX('n')`^(
-	  [+-]? (?: \d+ (\.\d*)? | \.\d+ ) ${rUnitC}   # sign plus digits or decimal point with digits before and/or after, followed by a unit
-	| auto | inherit | initial | unset             # or a keyword
-)$`;
-
-
-/// Replaces all sequences of comments and whitespace tokens in a token stream with '' or ' '
+/// Replaces all sequences of comments and whitespace tokens in a token stream with '' or ' ',
 /// depending on the surrounding tokens, so that the joined code retains its CSS meaning.
 function minifyTokens(tokens) {
 	tokens = tokens.slice();
@@ -437,92 +404,6 @@ function addImportants(tokens) {
 function evalString(string) {
 	// TODO: this ignores all meaningful escapes except `/` (there shouldn't be any, since URLs don't support them either, but still)
 	return string.replace(/\\+/g, _ => '\\'.repeat(Math.ceil(_.length / 2)));
-}
-
-function parseMetaBlock(block, onerror) {
-	const entries = block.slice(0, -2).split(/^ ?\* ?@(?=\w)/gm).slice(1);
-
-	const meta = { }; for (const entry of entries) { try {
-		let key = (/^\w+/).exec(entry)[0];
-		block: switch (key) {
-			case 'title': key = 'name'; /* falls through */
-			case 'licence': key = 'license'; /* falls through */
-			case 'name': case 'author': case 'license': {
-				meta[key] = (/^ ?.*/).exec(entry.slice(key.length))[0].trim();
-			} break;
-			case 'description': {
-				meta.description = entry.slice(key.length).replace(/^ ?\*? {0,5}/gm, '').trim();
-			} break;
-			case 'include': {
-				const { name, title, description, default: value, type, } = parseTable(entry.slice(key.length));
-				if (!name) { console.error(`ignoring @include rule without name:`, entry); break; }
-				(meta.include = meta.include || [ ]).push({
-					name, title: title || (description ? '' : name), description, type: type || 'domain',
-					default: value ? Array.from(new Set(value.split(/\s+/g))) : [ ],
-				});
-			} break;
-			case 'option': {
-				// for orientation: https://developer.mozilla.org/en-US/docs/Archive/Add-ons/Add-on_SDK/High-Level_APIs/simple-prefs
-				const { name, title, description, type, ...props } = parseTable(entry.slice(key.length));
-				if (!name) { console.error(`ignoring @option rule without name:`, entry); break; }
-				const option = {
-					name, title: title || (description ? '' : name), description, type,
-				}; switch (type) {
-					case 'color': /* nothing to do */ break;
-					case 'bool': option.type = 'boolean'; /* falls through */
-					case 'boolean': {
-						if (!('on' in props) && !('off' in props)) { console.error(`ignoring boolean @option rule without either 'on' or 'off' values`, entry); break; }
-						option.type = 'boolInt'; ('on' in props) ? (option.on = props.on) : (option.off = props.off);
-						option.description = undefined; option.suffix = description;
-					} break;
-					case 'integer': case 'number': {
-						option.restrict = { type: 'number', match: type === 'integer' && { exp: (/^-?\d+$/), message: 'This value must be an integer', }, };
-						('min' in props) && (option.restrict.from = +props.min);
-						('max' in props) && (option.restrict.to = +props.max);
-						const { unit, } = props; if (unit && rUnit.test(unit))
-						{ option.suffix = unit; option.unit = unit; }
-					} break;
-					// custom CSS snippets
-					case 'css-dimension': {
-						option.type = 'string'; // TODO: use shorter field
-						option.restrict = { type: 'string', match: {
-							exp: rDimension, message: 'This value must be an CSS dimension as <number><unit>,\n'
-							+ 'where unit is e.g. px, %, em, deg, ms, dpi.\nOr a keyword like auto, inherit or unset.',
-						}, };
-					} break;
-					case 'css-selector': case 'css-selector-multi': { option.restrict = { match: {
-						exp: rSelector, message: `The value may not be empty, end with a ',', contain unescaped ';', '{' or '}' or end within strings or comments`,
-					}, custom: balancedBrackets, }; option.type = type === 'css-selector' ? 'string' : 'code'; } break;
-					case 'css-value': { option.restrict = { match: {
-						exp: rValue, message: `The value may not contain unescaped ':', ';', '{' or '}' or end within strings or comments`,
-					}, custom: balancedBrackets, }; option.type = 'string'; } break;
-					case 'css-declarations': { option.restrict = { match: {
-						exp: rDeclarations, message: `The value may not contain unescaped '{' or '}' or end within strings or comments`,
-					}, custom: balancedBrackets, }; option.type = 'code'; } break;
-					default: console.error(`ignoring @option rule with invalit type "${type}":n * @`+ entry); break block;
-				} (meta.options = meta.options || [ ]).push(option);
-			} break;
-		}
-	} catch (error) { onerror(error); } } return meta;
-
-	function parseTable(string) {
-		// TODO: strip /^\ ?\*?\ ?/gm and parse as YAML (https://github.com/jeremyfa/yaml.js)
-		const lines = string.split('\n').map(_=>_.replace(/^\s*(?:\*\s*)?|\s*$/g, '')).filter(_=>_);
-		let last; const table = { }; for (const line of lines) {
-			const match = (/^(?:([\w-]+):?\s+(?=\S)|\|)(.+)$/).exec(line); if (!match) { continue; }
-			const [ , key, value, ] = match; if (!key) {
-				last && (table[last] += '\n'+ value);
-			} else { table[key] = value; last = key; }
-		} return table;
-	}
-
-	function balancedBrackets(string) {
-		const tokens = tokenize(string);
-		for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
-			case '(': case '{': case '[': index = skipBlock(tokens, index); break;
-			case ')': case '}': case ']': throw new Error(`Unexpected closing bracket ${ tokens[index] }`);
-		} }
-	}
 }
 
 return Sheet;

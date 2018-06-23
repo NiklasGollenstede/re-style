@@ -43,8 +43,9 @@ class ChromeStyle {
 		return new ChromeStyle(path, chrome, content);
 	}
 
-	static extractFiles(data) {
-		const files = { }; extract(data).split(infix).slice(0, -1).forEach(css => {
+	static extractSection(data) { return extract(data); }
+	static parseFiles(data) {
+		const files = { }; data.split(infix).slice(0, -1).forEach(css => {
 			let path; css = css.trim().replace(/^\/\* (.*) \*\/\n/, (_, s) => ((path = s), ''));
 			if (!path) { console.error('Failed to extract file name from code chunk', css); }
 			else { files[path] = css; }
@@ -81,41 +82,45 @@ function extract(file) { return (rExtract.exec(file) || [ '', '', ])[1]; }
 let active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; applyStyles(!value); });
 const applyStyles = debounceIdle(async (clear) => {
 	if (!(active || clear)) { return; } // this shouldn't be possible
-	if (clear && !current) { return; } // witched off but didn't work before
+	if (clear && !loaded) { return; } // witched off but didn't work before
 
-	Native.getApplicationName({ stale: true, }).then(name => !name
-		&& notify.error('Set up NativeExt',
+	Native.getApplicationName({ stale: true, }).then(name => { if (!name) {
+		notify.error('Set up NativeExt',
 			`Applying chrome styles requires NativeExt, but it is not installed or not set up correctly.`,
-		).then(_=>_ && openView('setup'))
-	);
+		).then(_=>_ && openView('setup'));
+	} });
 
 	Native.do(writeStyles); // deduplicates calls (until started)
 }, 1e3);
 
-let current = null; async function writeStyles(process) { try {
-	let clear; if (!active) { if (current) { clear = true; } { return; } }
+let loaded = null; // to the best of our knowledge, this is the version of our styles currently loaded by firefox, i.e. what is applied
+let written = null; // this is the version of our styles we wrote, i.e. want to apply
+async function writeStyles(process) { try {
+	let clear; if (!active) { if (loaded) { clear = true; } else {
+		return; // was switched off, but was unable to write before anyway
+	} }
 
 	const sorted = clear ? null : Array.from(styles).sort((a, b) => a.path < b.path ? -1 : 1);
 
 	// TODO: this throws all @namespace declarations into a single file. Is that even supposed to work? Do later (default) declarations overwrite earlier ones?
 	// TODO: do @import rules work? Should they?
 
-	const files = { chrome: '', content: '', }, data = { chrome: '', content: '', };
+	const files = { chrome: '', content: '', }; written = { chrome: '', content: '', };
 	clear || Object.keys(files).forEach(type => (files[type] =
-		prefix + (data[type] = sorted.filter(_=>_[type]).map(
+		prefix + (written[type] = sorted.filter(_=>_[type]).map(
 			style => `/* ${style.path} */\n${style[type]}${infix}`
 		).join('\n')) + suffix
 	));
 
 	const native = (await process.require(require.resolve('./native')));
-	if (!current) { current = (await native.read()); {
-		Object.keys(current).forEach(key => {
-			current[key] = extract(current[key].replace(/\r\n?/g, '\n'));
+	if (!loaded) { loaded = (await native.read()); {
+		Object.keys(loaded).forEach(key => {
+			loaded[key] = extract(loaded[key].replace(/\r\n?/g, '\n'));
 		});
 	} }
 	(await native.write(files, rExtractSource));
 
-	changed = Object.entries((await current)).some(([ key, current, ]) => data[key] !== current);
+	changed = Object.entries((await loaded)).some(([ key, loaded, ]) => written[key] !== loaded);
 	fireWritten([ changed, ]);
 
 } catch (error) { notify.error(`Failed to write chrome styles`, error); } }
