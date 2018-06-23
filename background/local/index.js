@@ -59,12 +59,13 @@ let unloading = false; global.addEventListener('unload', () => (unloading = true
 if (active) { enable(true).catch(reportError); } else { if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); } else { global.__startupSyncPoint__ = () => null; } }
 
 // reads the local dir and starts listening for changes of it or the chrome/ dir
+let openedInstructions = false; // fix: open instructions only once
 async function enable(init) {
 	if (active && !init) { return; } active = options.local.value = true;
 
 	if (!(await Native.test())) {
 		reportError(`NativeExt unaviable`, `${manifest.name} could not connect to it's native counterpart. To use local styles, please follow the setup instructions.`);
-		disable(); openView('setup'); return;
+		disable(); !openedInstructions && openView('setup'); openedInstructions = true; return;
 	}
 
 	// console.log('enable local styles');

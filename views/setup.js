@@ -9,10 +9,14 @@ document.body.innerHTML = `
 		body { margin: 20px; }
 		code { padding: 2px 3px; border-radius: 3px; }
 		body:not(.unix) .unix-only { display: none; }
+		.warning { color: #ff6464; background: black; padding: 3px 7px; }
 	</style>
 	<h1>Setup <small>(optional)</small></h1>
-	To load local styles and apply styles to the browser UI of Firefox, you have to install an additional application and allow reStyle to connect to it.<br>
-	To do so, please follow these steps:
+	<p>To load local styles and apply styles to the browser UI of Firefox, you have to install an additional application and allow reStyle to connect to it.<br>
+	To do so, please follow these steps:</p>
+	<p class=warning>NOTE: Changes in Firefox 61 broke the security mechanisms of NativeExt on some systems, where it will now reject all connections.<br>
+	A new version of NativeExt with a different security architecture is almost ready and reStyle will be updated soon as well.<br>
+	Sorry for any inconvenience and please be patient.</p>
 	<ol>
 		<li><a id="download-bin" download><b>Download</b></a> and
 			execute <a href="https://github.com/NiklasGollenstede/native-ext" target="_blank">NativeExt</a>.

@@ -3,6 +3,8 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 
 	// manifestJson.applications.chrome = { id: 'embimhfddeikmonnjmkdlcgigakajajd', };
 
+	manifestJson.version = '0.3.1.1';
+
 	manifestJson.permissions.push(
 		'nativeMessaging',
 		'notifications',

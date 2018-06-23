@@ -80,11 +80,12 @@ function extract(file) {
 
 // `load` tries to require the ./native module in node.js, returns `false` if that fails
 // `unload` releases the module after a while to allow node.js to quit
+let openedInstructions = false; // fix: open instructions only once
 let native = null; const load = async () => {
 	if (native) { return native; }
 	if (!(await Native.test())) {
 		reportError(`NativeExt unaviable`, `${manifest.name} could not connect to it's native counterpart. To use chrome styles, please follow the setup instructions.`);
-		active = options.chrome.value = false; openView('setup'); return null;
+		active = options.chrome.value = false; !openedInstructions && openView('setup'); openedInstructions = true; return null;
 	}
 	return (native = (await Native.require(require.resolve('./native'))));
 }, unload = debounce(() => {
