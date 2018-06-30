@@ -26,7 +26,7 @@
 		"es6lib": "0.0.2",
 		"marked": "0.4.0",
 		"multiport": "0.2.3",
-		"native-ext": "0.3.0",
+		"native-ext": "0.3.1",
 		"pbq": "0.3.3",
 		"regexpx": "0.1.4",
 		"web-ext-build": "0.0.9",

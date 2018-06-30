@@ -191,8 +191,9 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 	const metaBlock = globalTokens.find(token =>
 		(/^\/\*[*!]*\s*==+[Uu]ser-?[Ss]tyle==+\s*?\n/).test(token)
 	); if (metaBlock) {
-		try { Object.assign(meta, YAML.parse(
-			metaBlock.replace(/^.*\n|\s*\*\//g, '').replace(/^ ?\*? ?/gm, '') // strip comment frame
+		try { Object.assign(meta, YAML.parse(metaBlock
+			.replace(/^ \* @([\w-]+)( |$)/gm, (_, key, inline) => ' * '+ key +': '+ (inline || key !== 'description' ? '' : '|')) // transform `@<key>` to `key:` (backwards compatibility)
+			.replace(/^.*\n|\s*\*\//g, '').replace(/^ ?\*? ?/gm, '') // strip comment frame
 		)); } catch (error) { onerror(error); }
 	} else {
 		const where = globalTokens.slice(0, 5).concat(sections[1] ? sections[1].tokens.slice(0, 4) : [ ]);

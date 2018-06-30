@@ -120,7 +120,7 @@ const RegExpXu = RegExpX({ unicode: true, noCapture: true, });
 const toRegExp = {
 	urls(raws) { return RegExpXu`^ ${raws} $`; },
 	urlPrefixes(raws) { return RegExpXu`^ ${raws} .*$`; },
-	domains(raws) { return RegExpXu`^ https?:// ( [^/]+\. )? ${raws} ( $ | /.*$ )`; },
+	domains(raws) { return RegExpXu`^ https?:// ( [^/]+\. )? ${raws} ( $ | ( : \d{1,5} )? /.*$ )`; },
 	regexps(raws) { const exps = raws.map(_=>RegExp(_)); return RegExpXu`^ ${exps} $`; },
 };
 

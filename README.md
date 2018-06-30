@@ -78,3 +78,8 @@ When activated, the `Style` sorts through it's `Section`s and detects weather ea
 
 Every `.js` or `.html` file or folder with a `index.js` or `index.html` in the `/views/` folder will implicitly result in a extension page available as `...-extension://.../reStyle#<folder/file name without ext>`.
 The scripts themselves are loaded in the background context and must export a function that will be passed the `window` of the visible page when one with the matching `#`-name is opened.
+
+
+##  AMO code review notes
+
+The exact version of the included YAML parser is <https://github.com/jeremyfa/yaml.js/blob/v0.3.0/dist/yaml.min.js>.

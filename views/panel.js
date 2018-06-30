@@ -52,9 +52,10 @@ const url = new global.URL(tab.url);
 /// restart notice
 if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div id=restart>
 	<style>
-		#restart { background: #f49f00; padding: 8px; }
+		:root>body { background: #a75300; } /* orange color for the arrow-thing */
+		#restart { background: hsl(29.5, 79%, 58%); } /* filtered #a75300 */
+		#restart { padding: 8px; max-width: 350px; }
 		#restart code { font-size: 120%; }
-		:root>body { background: #a75300; } /* for the arrow-thing*/
 	</style>
 	The UI styles have changed. The browser has to be restarted to apply the changes.<br>
 	You can do that e.g. by prssting <code>Shift</code>+<code>F2</code> and typing <code>restart</code> (then <code>Enter</code>).

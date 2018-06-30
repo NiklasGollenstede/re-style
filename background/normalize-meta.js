@@ -133,7 +133,7 @@ return function normalize(sheet, url) { {
 						} break;
 
 						case 'css-selector': case 'css-selector-multi': {
-							option.type = entry.type === 'css-selector' ? 'string' : 'code';
+							option.input.type = entry.type === 'css-selector' ? 'string' : 'code';
 							option.restrict = { match: {
 								exp: rSelector, message: `The value may not be empty, end with a ',', contain unescaped ';', '{' or '}' or end within strings or comments`,
 							}, custom: balancedBrackets, };
