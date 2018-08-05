@@ -50,7 +50,7 @@ const model = {
 	chrome: {
 		title: 'UI Styles',
 		description: `Starting with Firefox 57, it is no longer possible for Add-ons to directly apply user styles to anything else than normal websites.<br>
-		As a workaround, ${manifest.short_name} recognizes styles that will no longer work and writes them to the <code>userCrome.css</code> (e.g. for the UI) and <code>userContent.css</code> (e.g. for about:-pages) files of the current Firefox profile.<br>
+		As a workaround, ${manifest.short_name} recognizes styles that will no longer work and writes them to the <code>userChrome.css</code> (e.g. for the UI) and <code>userContent.css</code> (e.g. for about:-pages) files of the current Firefox profile.<br>
 		NOTE: The browser must be restarted for changes to those files to apply.`,
 		default: firefox, hidden: !firefox,
 		restrict: { type: 'boolean', },
@@ -82,13 +82,13 @@ const model = {
 			},
 			chrome: {
 				title: 'Chrome debugging [ᴇxᴘᴇʀɪᴍᴇɴᴛᴀʟ]',
-				description: `<p>To develop chrome styles without restarting the browser after every change, the corresponding sections in the <code>userCrome.css</code>/<code>userContent.css</code> files can be edited
+				description: `<p>To develop chrome styles without restarting the browser after every change, the corresponding sections in the <code>userChrome.css</code>/<code>userContent.css</code> files can be edited
 				through the Style Editor in the <i>Browser Toolbox</i> (<code>Ctrl</code> + <code>Shift</code> + <code>Alt</code> + <code>I</code>) for the main UI or the page inspector on <code>about:</code>-pages.<br>
 				Firefox applies changes made there after a short delay, and when saving (<code>Ctrl</code>+<code>S</code>), writes the new files to the disc.</p>
 				<p>As an <b>experimental</b> feature, ${manifest.short_name} can detect these on-disc changes and map them back to the original (local) style files.<br>
 				${manifest.short_name} is only able to map chages made within the code block of existing <code>@document</code> sections.
 				Other modifications can not be mapped to the original files and may have unexpexted results.
-				Any changes made to the source files since the browser start will be overwritten when the <code>userCrome.css</code>/<code>userContent.css</code> files are saved.</p>
+				Any changes made to the source files since the browser start will be overwritten when the <code>userChrome.css</code>/<code>userContent.css</code> files are saved.</p>
 				<b>Activate at your own risk and always make backups!</b>`,
 				expanded: false,
 				default: false,
