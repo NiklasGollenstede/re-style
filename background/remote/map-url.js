@@ -1,14 +1,10 @@
 (function(global) { 'use strict'; define(require => { // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/**
- * Maps the url of a tab to a url suited for style installation.
- * Currently supports 'userstyles.org', 'github.com' and generic https?:// urls.
- * @param  {string}  url  Installation pages url.
- * @param  {Tab?}    tab  Optional tabs.Tab to give additional context information.
- * @return {string}       Url that can, more likely, be used for style installation.
- */
-return async function mapUrl(url, tab) { switch (true) {
-	case (/^https?:\/\/userstyles\.org\/styles\/\d+/).test(url): {
+
+const sources = [ {
+	title: 'UserStyles.org',
+	match: (/^https?:\/\/userstyles\.org\/styles\/\d+/),
+	async getStyle(url, _, tab) {
 		const id =  (/\d+/).exec(url)[0];
 		if (!tab) { return `https://userstyles.org/styles/${id}.css`; }
 		let query; try { query = (await
@@ -16,15 +12,36 @@ return async function mapUrl(url, tab) { switch (true) {
 			.runInFrame(tab.id, 0, readUserstylesOrgOptions)
 		); } catch (error) { console.error(error); }
 		return `https://userstyles.org/styles/${id}.css` + (query ? '?'+ query : '');
-	}
-	case (/^https:\/\/github\.com\/[\w-]+\/[\w-]+\/blob\/master\/.*\.css/).test(url): {
-		return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/master/', '/master/');
-	}
-	case !(/^https?:\/\//).test(url): {
-		return '';
-	}
-	default: return url;
-} };
+	},
+}, {
+	title: 'OpenUserCSS',
+	match: (/^https:\/\/openusercss\.org\/theme\/([\da-z]{24})\/?$/),
+	getStyle(url, [ , id, ]) { return `https://api.openusercss.org/theme/${id}.user.css`; },
+}, {
+	title: 'GitHub',
+	match: (/^https:\/\/github\.com\/([\w-]+\/[\w-]+)\/blob\/(.*\.css.*)$/),
+	getStyle(url, [ , repo, path, ]) { return `https://raw.githubusercontent.com/${repo}/${path}`; },
+}, {
+	title: 'GitLab',
+	match: (/^https:\/\/gitlab\.com\/([\w-]+\/[\w-]+\/[\w-]+)\/blob\/(.*\.css.*)$/),
+	getStyle(url, [ , repo, path, ]) { return `https://gitlab.com/${repo}/raw/${path}`; }, // TODO: test this
+}, ];
+
+
+/**
+ * Maps the url of a tab to a url suited for style installation.
+ * Currently supports 'userstyles.org', 'github.com' and generic https?:// urls.
+ * @param  {string}  url  Installation pages url.
+ * @param  {Tab?}    tab  Optional tabs.Tab to give additional context information.
+ * @return {string}       Url that can, more likely, be used for style installation.
+ */
+return async function mapUrl(url, tab) {
+	const source = sources.find(_=>_.match.test(url));
+	if (source) { const match = source.match.exec(url); return source.getStyle(url, match, tab); }
+	if (!(/^https?:\/\//).test(url)) { return ''; }
+	return url;
+};
+
 
 async function readUserstylesOrgOptions() { return (await Promise.all(Array.from(
 	document.querySelectorAll('#advancedsettings_area input, #advancedsettings_area select'), /* global document, */

@@ -24,7 +24,7 @@ class Sheet {
 	static fromCode(code, options) { return Sheet_fromCode(code, options); }
 
 	/**
-	 * Transforms `userstyles.orgs` JSON sheets into plain CSS code.
+	 * Transforms `userstyles.org`s JSON sheets into plain CSS code. Normalizes newlines.
 	 * @param  {string}  json  JSON response from `userstyles.orgs` API.
 	 * @return {string}        Converted CSS code.
 	 */
@@ -191,10 +191,22 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 	const metaBlock = globalTokens.find(token =>
 		(/^\/\*[*!]*\s*==+[Uu]ser-?[Ss]tyle==+\s*?\n/).test(token)
 	); if (metaBlock) {
-		try { Object.assign(meta, YAML.parse(metaBlock
-			.replace(/^ \* @([\w-]+)( |$)/gm, (_, key, inline) => ' * '+ key +': '+ (inline || key !== 'description' ? '' : '|')) // transform `@<key>` to `key:` (backwards compatibility)
-			.replace(/^.*\n|\s*\*\//g, '').replace(/^ ?\*? ?/gm, '') // strip comment frame
-		)); } catch (error) { onerror(error); }
+		const tokens = metaBlock
+		.replace(/^.*\n/, '') // first line, which is known to contain the ==UserStyle== sequence
+		.replace(/\s*(==+\/?[Uu]ser-?[Ss]tyle==+\s*)?\*\/$/, '') // optional closing ==/UserStyle==, whitespaces and comment end
+		.replace(/^ ?\* ?/gm, '') // ' * ' sequences at line start, both spaces optional
+		.split(/^@([\w-]+)(?= |$)/gm);
+
+		parse(tokens[0]); // well formed YAML
+		for (let i = 1; i < tokens.length; i += 2) {
+			const key = tokens[i]; let value = tokens[i+1];
+			switch (key) {
+				case 'description': value = value.replace(/^\s*\n/, ' |\n'); break;
+				case 'var': case 'advanced': (meta.vars || (meta.vars = [ ])).push(tokenize(value)); continue;
+			}
+			if (!parse(key +':'+ value) && !meta.hasOwnProperty(key)) { meta[key] = value.trim(); }
+		}
+		function parse(string) { try { Object.assign(meta, YAML.parse(string)); return true; } catch (error) { onerror(error); return false; } }
 	} else {
 		const where = globalTokens.slice(0, 5).concat(sections[1] ? sections[1].tokens.slice(0, 4) : [ ]);
 		rsFuzzyTitle.some(exp => where.some(token => {
@@ -235,11 +247,11 @@ function json2css(json) {
 	return JSON.parse(json).sections.map(({ urls, urlPrefixes, domains, regexps, code, }) => {
 		// the urls, urlPrefixes, domains and regexps returned by userstyles.org are escaped so that they could directly be paced in double-quoted strings
 		// but e.g. to compare them against actual URLs, their escapes need to be evaluated
-		const toObj = s => ({ value: evalString(s), });
+		const toObj = s => ({ value: evalString(s.replace(/\r\n?/g, '\n')), });
 		urls = urls.map(toObj); urlPrefixes = urlPrefixes.map(toObj);
 		domains = domains.map(toObj); regexps = regexps.map(toObj);
 
-		return Section_toString.call({ urls, urlPrefixes, domains, regexps, tokens: [ code, ], location: null, dynamic: [ ], });
+		return Section_toString.call({ urls, urlPrefixes, domains, regexps, tokens: [ code.replace(/\r\n?/g, '\n'), ], location: null, dynamic: [ ], });
 	}).join('\n\n');
 }
 
@@ -262,19 +274,20 @@ function Section_toString({ minify = false, important = false, } = { }) {
 
 const rOptionTag = RegExpX`^
 	\/\*!?\[\[            # /*[[ or /*![[
-		([\!\/])          # ! for opening, / for closing
+		([\!\/])?         # ! for opening, / for closing
 		([a-zA-Z][\w-]+)  # name
 	\]\]\*\/              # ]]*/
 $`;
 function Section_swapOptions(get, set) {
-	// format: /*[[!<name>]]*/<value>/*[[/<name>]]*/
+	// format (get|set): /*[[!<name>]]*/<value>/*[[/<name>]]*/
+	// format (set): /*[[<name>]]*/
 	const { tokens, } = this;
 	let start = -1, name = null;
 	for (let i = 0, l = tokens.length, token = tokens[i]; i < l; token = tokens[++i]) {
 		const match = rOptionTag.exec(token); if (!match) { continue; }
 		if (match[1] === '!') {
 			start = i; name = match[2];
-		} else {
+		} else if (match[1] === '/') {
 			if (name !== match[2]) { continue; }
 			if (get && !(name in get)) {
 				get[name] = tokens.slice(start + 1, i).join('');
@@ -285,7 +298,10 @@ function Section_swapOptions(get, set) {
 				i += now.length - old.length;
 			}
 			start = -1; name = null;
-		}
+		} else { const name = match[2]; if (set && (name in set)) {
+			const now = [ `/*[[!${name}]]*/`, ...tokenize(set[name]), `/*[[/${name}]]*/`, ];
+			tokens.splice(i, 1, ...now); i += now.length - 1;
+		} }
 	}
 	return get;
 }
@@ -406,6 +422,14 @@ function evalString(string) {
 	// TODO: this ignores all meaningful escapes except `/` (there shouldn't be any, since URLs don't support them either, but still)
 	return string.replace(/\\+/g, _ => '\\'.repeat(Math.ceil(_.length / 2)));
 }
+
+Object.defineProperty(Sheet, 'checkBalancedBrackets', { value(string) {
+	const tokens = tokenize(string);
+	for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
+		case '(': case '{': case '[': index = skipBlock(tokens, index); break;
+		case ')': case '}': case ']': throw new Error(`Unexpected closing bracket ${ tokens[index] }`);
+	} }
+}, configurable: true, writeable: true, });
 
 return Sheet;
 

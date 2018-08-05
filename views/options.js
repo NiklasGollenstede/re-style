@@ -3,11 +3,13 @@
 	'node_modules/web-ext-utils/options/editor/': Editor,
 	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/es6lib/dom': { createElement, writeToClipboard, },
+	'node_modules/native-ext/': Native,
+	'background/chrome/': ChromeStyle,
 	'background/remote/': RemoteStyle,
 	'background/remote/map-url': mapUrl,
 	'common/options': options,
 	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorIndexCss,
-}) => ({ document, prompt, }) => {
+}) => ({ document, prompt, confirm, }) => {
 
 document.title = 'Options - '+ manifest.name;
 document.head.appendChild(createElement('style', [ editorIndexCss, ]));
@@ -68,6 +70,15 @@ async function onCommand({ name, /*parent,*/ }, /*buttonId*/) { try { switch (na
 			? notify.error(`Failed to update:`, ...failed.map(_=>_.url))
 			: notify.error(`Failed to update:`, failed[0].url, failed[1].url, `and ${ failed.length - 2 } more styles`)
 		);
+	} break;
+	case 'clearChrome': {
+		if (!confirm('This permanently deletes all content from the userChrome.css and userContent.css files!')) { return; }
+
+		if (!(await Native.getApplicationName({ stale: true, }))) { notify.error('Set up NativeExt',
+			`This requires NativeExt, but it is not installed or not set up correctly.`,
+		); return; }
+
+		(await ChromeStyle.reset());
 	} break;
 	default: {
 		throw new Error('Unhandled command "'+ name +'"');

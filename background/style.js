@@ -259,7 +259,7 @@ class _Style {
 			// this is not going to be accurate (and therefore not exclusive)
 			regexps.forEach(({ value, as, }) => {
 				if ((/^\w+$/).test(value)) { return; } // dynamic include or has no effect
-				if (as) { targets[as].regexps.push({ value, as, }); }
+				if (as) { targets[as].regexps.push({ value, as, }); return; }
 				(/chrome\\?:\\?\/\\?\//).test(value) && chrome_.regexps.push({ value, as, });
 				(/(?:resource|moz-extension)\)?\\?:\\?\/\\?\/|(?:about|blob|data|view-source)\)?\\?:/)
 				.test(value) && content.regexps.push({ value, as, });

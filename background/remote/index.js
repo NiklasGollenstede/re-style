@@ -127,17 +127,21 @@ async function update(style, query) {
 }
 async function prepareUpdate(style, query) {
 	query = query || style.options.query.value;
+	const name = style.meta.name || 'to be added';
 
-	const reply = (await global.fetch(style.url + (query ? query.replace(/^\??/, '?') : '')));
-	const type = reply.headers.get('content-type'), data = (await reply.text());
+	let type, data; try {
+		const reply = (await global.fetch(style.url + (query ? query.replace(/^\??/, '?') : '')));
+		if (reply.status !== 200) { throw new Error(reply.statusText); }
+		type = reply.headers.get('content-type'); data = (await reply.text());
+	} catch (error) { throw new Error(`Failed to load style ${name}: ${error.message}`); }
 
 	let code; if ((/^application\/json(?:;|$)/).test(type)) {
-		try { code = json2css(data.replace(/\\r(?:\\n)?/g, '\\n'), style); } // TODO: this converts literal `\\r` to `\\n` as well
-		catch (_) { throw new TypeError(`Malformed JSON response for style ${style.name}`); }
+		try { code = json2css(data); }
+		catch (_) { throw new TypeError(`Malformed JSON response for style ${name}`); }
 	} else if ((/^text\/(?:css|plain)(?:;|$)/).test(type)) { // also accepts plain text as css
 		code = data.replace(/\r\n?/g, '\n');
 	} else {
-		throw new TypeError(`Unexpected MIME-Type ${type} for style ${ style.name || 'to be added' }`);
+		throw new TypeError(`Unexpected MIME-Type ${type} for style ${name}`);
 	}
 	return async () => {
 		(await style.setSheet(code));

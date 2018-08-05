@@ -55,6 +55,12 @@ const model = {
 		default: firefox, hidden: !firefox,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
+		children: {
+			clearChrome: {
+				default: true, description: ' ',
+				input: [ { type: 'control', label: `Delete`, suffix: `all content from the <code>userChrome.css</code> and <code>userContent.css</code> files, except for reStyles section.`, }, ],
+			},
+		},
 	},
 	local: {
 		title: 'Development Mode',

@@ -160,9 +160,10 @@ async function onChromeChange(path, css) { try {
 
 	// for each file segment ...
 	(await Promise.all(Object.entries(ChromeStyle.parseFiles(css)).map(async ([ path, css, ]) => {
+		if ((/^https?:\/\//).test(path)) { return; } // skip remote styles
 		const id = (await Style.url2id(path));
 		const style = styles.get(id), old = style && style.chrome.sheets[type];
-		if (!old) { console.error(`Unexpected chrome style section ${id}`); return; }
+		if (!old) { console.error(`Unexpected chrome style section ${path}`); return; }
 		if (style.chrome[type] === css) { return; } // the segment of the style actually changed
 		const oldSections = old.sections.slice();
 

@@ -6,7 +6,7 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 	manifestJson.permissions.push(
 		'nativeMessaging',
 		'notifications',
-		// 'sessions', // remove closed popups // TODO: add this as a minor update at some point
+		'sessions', // to remove own closed popups
 		'tabs',
 		'webNavigation',
 		'<all_urls>',

@@ -52,6 +52,10 @@ class ChromeStyle {
 		}); return files;
 	}
 
+	static async reset() {
+		return Native.do(process => writeStyles(process, !active, "^[^]*$"));
+	}
+
 } const styles = new Set; let changed = false;
 
 /**
@@ -70,7 +74,7 @@ const prefix = `\n/* Do not edit this section of this file (outside the Browser 
 // The media query seems to "reset" the parser (and doesn't do anything itself).
 // At the same time it serves as split point when the changes to the files are applied to the local edit files.
 const infix  = `\n/*"*//*'*/;};};};};};}@media not all {} /* reset sequence, do not edit this line */ /*NEXT:${uuid}*/\n`;
-const suffix = `\n/*END:${uuid}*/\n`;
+const suffix = `/*END:${uuid}*/\n`;
 // extracts reStyles section from the files. This allows other content to coexist with reStyles managed code
 const rExtract = RegExpX`
 	(?:^|\n) .* \/\*START:${uuid}\*\/ .*\n ([^]*) \n.*\/\*END:${uuid}\*\/ (?:\n|$)
@@ -81,8 +85,8 @@ function extract(file) { return (rExtract.exec(file) || [ '', '', ])[1]; }
 // `applyStyles` actually writes the styles, but not to frequently and only if `options.chrome` enabled
 let active = options.chrome.value; options.chrome.onChange(([ value, ]) => { active = value; applyStyles(!value); });
 const applyStyles = debounceIdle(async (clear) => {
-	if (!(active || clear)) { return; } // this shouldn't be possible
-	if (clear && !loaded) { return; } // witched off but didn't work before
+	if (!(active || clear)) { return; } // nothing to do
+	if (!active && !loaded) { return; } // this only happens if it was enabled, didn't work yet and is now disabled
 
 	Native.getApplicationName({ stale: true, }).then(name => { if (!name) {
 		notify.error('Set up NativeExt',
@@ -90,15 +94,17 @@ const applyStyles = debounceIdle(async (clear) => {
 		).then(_=>_ && openView('setup'));
 	} });
 
-	Native.do(writeStyles); // deduplicates calls (until started)
+	Native.do(tryWriteStyles); // deduplicates calls (until started)
 }, 1e3);
 
 let loaded = null; // to the best of our knowledge, this is the version of our styles currently loaded by firefox, i.e. what is applied
 let written = null; // this is the version of our styles we wrote, i.e. want to apply
-async function writeStyles(process) { try {
-	let clear; if (!active) { if (loaded) { clear = true; } else {
-		return; // was switched off, but was unable to write before anyway
-	} }
+async function tryWriteStyles(process) { try {
+	if (!active && !loaded) { return; } // this only happens if it was enabled, didn't work yet and is now disabled
+	(await writeStyles(process, !active, rExtractSource));
+} catch (error) { notify.error(`Failed to write chrome styles`, error); } }
+
+async function writeStyles(process, clear, replace) {
 
 	const sorted = clear ? null : Array.from(styles).sort((a, b) => a.path < b.path ? -1 : 1);
 
@@ -118,12 +124,11 @@ async function writeStyles(process) { try {
 			loaded[key] = extract(loaded[key].replace(/\r\n?/g, '\n'));
 		});
 	} }
-	(await native.write(files, rExtractSource));
+	(await native.write(files, replace));
 
 	changed = Object.entries((await loaded)).some(([ key, loaded, ]) => written[key] !== loaded);
 	fireWritten([ changed, ]);
-
-} catch (error) { notify.error(`Failed to write chrome styles`, error); } }
+}
 
 
 return ChromeStyle;
