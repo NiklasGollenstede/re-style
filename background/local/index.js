@@ -53,18 +53,23 @@ class LocalStyle extends Style {
 
 let native = null/*exports*/, onSpawn, waiting;
 const styles = new Map/*<id, LocalStyle>*/; let exclude = null/*RegExp*/;
-options.local.children.folder.onChange(async () => {
-	if (active) { try { disable(); (await enable()); } catch (error) { notify.error(error); } }
-});
-let active = options.local.value; options.local.onChange(async ([ value, ]) => {
-	try { (await (value ? enable() : disable())); } catch (error) { notify.error(error); }
-});
-if (active) { enable(true).catch(notify.error); } else { letRemoteProceed(); }
+
+let active = options.local.value; options.local.onChange(async ([ value, ]) => { try {
+	(await (value ? enable() : disable()));
+} catch (error) { notify.error(error); } });
+if (active) { enable('init').catch(notify.error); } else { letRemoteProceed(); }
+
+options.local.children.folder.onChange(reEnable); options.local.children.exclude.onChange(reEnable);
+async function reEnable() { if (options.local.value) { try { disable(true); (await enable(true)); } catch (error) { notify.error(error); } } }
+
+options.local.children.chrome.onChange(async ([ value, ]) => { if (native) { try {
+	(await (value ? native.watchChrome(onChromeChange) : native.release(onChromeChange)));
+} catch (error) { notify.error(error); } } });
 
 
 // reads the local dir and starts listening for changes of it or the chrome/ dir
-async function enable(init) {
-	if (active && !init) { return; } active = options.local.value = true;
+async function enable(force) {
+	if (!force) { if (active) { return; } active = options.local.value = true; }
 
 	if (!(await Native.getApplicationName({ stale: true, }))) { {
 		notify.error('Set up NativeExt',
@@ -76,14 +81,14 @@ async function enable(init) {
 
 	// console.log('enable local styles');
 	exclude = new RegExp(options.local.children.exclude.value || '^.^');
-	const files = (await Native.on((onSpawn = async process => {
+	let files; (await Native.on((onSpawn = async process => {
 		native = (await process.require(require.resolve('./native')));
+
+		files = (await native.readStyles(options.local.children.folder.value, onCange, options.local.children.folder.values.isSet));
 
 		if (options.local.children.chrome.value) { debounceIdle(() => {
 			files && active && native && native.watchChrome(onChromeChange);
 		}, 2500)(); }
-
-		return native.readStyles(options.local.children.folder.value, onCange);
 	})));
 
 	if (files === null) { {
@@ -103,7 +108,7 @@ async function enable(init) {
 		} catch (error) { notify.error(`Failed to add local style`, path, error); } })))
 	));
 
-	if (init) { // on initial enable, sync with ../remote/
+	if (force === 'init') { // on initial enable, sync with ../remote/
 		if (global.__startupSyncPoint__) { global.__startupSyncPoint__(); }
 		else { (await new Promise((resolve, reject) => { global.__startupSyncPoint__ = resolve; require.async('../remote/').catch(reject); })); }
 		delete global.__startupSyncPoint__;
@@ -112,11 +117,10 @@ async function enable(init) {
 	styles.forEach(style => { try { style.disabled = false; } catch (error) { notify.error(`Failed to add local style`, error); } });
 }
 
-function disable() {
-	options.local.value = false; if (!active) { return; } active = false;
-	// console.log('disable local styles');
-	Array.from(styles.values(), _=>_.destroy()); styles.clear();
+function disable(force) {
+	if (!force) { options.local.value = false; if (!active) { return; } active = false; }
 
+	Array.from(styles.values(), _=>_.destroy()); styles.clear();
 	native && native.release(onCange);
 	native && native.release(onChromeChange);
 	Native.on.removeListener(onSpawn); native = null;

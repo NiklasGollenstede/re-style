@@ -75,14 +75,16 @@ module.exports = {
 
 //// start implementation
 
-const FS = require('fs'), Path = require('path').posix, { EOL, } = require('os'), { execFile, } = require('child_process');
+const FS = require('fs'), _Path = require('path'), Path = _Path.posix, { EOL, homedir, } = require('os'), { execFile, } = require('child_process');
 function get(api, ...args) { return new Promise((resolve, reject) => api(...args, (error, value) => error ? reject(error) : resolve(value))); }
 
 const cb2watcher = new WeakMap;
 
-async function readAndWatch(include, dir, onChange) {
+async function readAndWatch(include, dir, onChange, create) {
 	dir = normalize(dir); const data = { }, mtime = { };
-	try { (await get(FS.access, dir)); } catch (error) { return null; }
+	try { (await get(FS.access, dir)); } catch (error) {
+		if (error.code !== 'ENOENT' || !create || !(await mkdirp(dir))) { return null; }
+	}
 	(await (async function read(dir) {
 		for (const name of (await get(FS.readdir, dir))) {
 			// console.log('check', dir, name);
@@ -116,12 +118,24 @@ async function readAndWatch(include, dir, onChange) {
 	return data;
 }
 
+async function mkdirp(path) {
+	const parts = path.split('/'); path = parts[0]; // first one is empty or the drive letter
+	for (let i = 1, l = parts.length; i < l; ++i) {
+		path = path +'/'+ parts[i];
+		try { (await get(FS.mkdir, path)); }
+		catch (error) { if (error.code !== 'EEXIST') { return false; } }
+	} return true;
+}
+
 function release(onChange) {
 	const watcher = cb2watcher.get(onChange); cb2watcher.delete(onChange);
 	watcher && console.log('release');
 	watcher && watcher.close();
 }
 
+/// ensures that the path is normalized, (platform specific) absolute and uses '/' as separator
 function normalize(path) {
-	return Path.normalize(path.replace(/\\/g, '/').replace(/^~\//, () => require('os').homedir() +'/'));
+	path = path.replace(/^~[/\\]/, () => homedir() +'/');
+	if (!_Path.isAbsolute(path)) { throw new Error(`Path ${JSON.stringify(path)} is not absolute`); }
+	return Path.normalize(path.replace(/\\/g, '/'));
 }
