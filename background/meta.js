@@ -62,7 +62,7 @@ function normalize(sheet, url) { {
 		); return false; } return true;
 	}
 	function testUrl(key, value) {
-		let url; try { url = new URL(value); } catch { }
+		let url; try { url = new URL(value); } catch (_) { }
 		if (url && (/^https?:$/).test(url.protocol)) { return url.href; }
 		onerror(`Metadata URL ${key} is not a valid HTTP(S) URL: ${value}`); return null;
 	}
