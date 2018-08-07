@@ -3,14 +3,15 @@
 	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/options/editor/': Editor,
 	'node_modules/web-ext-utils/utils/notify': notify,
-	'node_modules/es6lib/dom': { createElement: _createElement, },
+	'node_modules/es6lib/dom': { createElement, },
 	'background/local/': LocalStyle,
 	'background/remote/': RemoteStyle,
 	'background/style': Style,
+	'background/util': { sanatize, },
 	'fetch!./styles.css:css': css,
 	'fetch!node_modules/web-ext-utils/options/editor/index.css:css': editorIndexCss,
 }) => async window => { const { document, } = window;
-const createElement = _createElement.bind(window); // create elements with correct owner so event listeners are detached on unload
+const $ = createElement.bind(window); // create elements with correct owner so event listeners are detached on unload
 
 const Sections = {
 	remote: {
@@ -28,19 +29,19 @@ const Sections = {
 	},
 };
 
-document.head.appendChild(createElement('style', [ editorIndexCss, ]));
+document.head.appendChild($('style', [ editorIndexCss, ]));
 document.head.appendChild(document.querySelector('style')); // editor/dark.css
-document.head.appendChild(createElement('style', [ css, ]));
+document.head.appendChild($('style', [ css, ]));
 
 for (const [ name, { Type, title, before, empty, after, }, ] of Object.entries(Sections)) {
-	let list; document.body.appendChild(createElement('div', {
+	let list; document.body.appendChild($('div', {
 		className: 'section', id: name,
 	}, [
-		createElement('h1', [ title, ]),
-		createElement('p', { className: 'before', innerHTML: before || '', }),
-		list = createElement('div', { className: 'list', }),
-		createElement('p', { className: 'if-empty', innerHTML: empty || '', }),
-		createElement('p', { className: 'after', innerHTML: after || '', }),
+		$('h1', [ title, ]),
+		$('p', { className: 'before', innerHTML: before || '', }),
+		list = $('div', { className: 'list', }),
+		$('p', { className: 'if-empty', innerHTML: empty || '', }),
+		$('p', { className: 'after', innerHTML: after || '', }),
 	]));
 
 	const entries = Array.from(Type, _=>_[1]).sort((a, b) => a.url < b.url ? -1 : 1);
@@ -60,24 +61,52 @@ Style.onChanged(id => {
 		// replace the .include and .options branches if they changed
 		[ 'include', 'options', ].forEach(name => {
 			const host = element.querySelector(`.pref-name-${name} .pref-children`)
-			|| element.querySelector(`.pref-name-${name} .toggle-target`).appendChild(createElement('fieldset', { className: 'pref-children', }));
+			|| element.querySelector(`.pref-name-${name} .toggle-target`).appendChild($('fieldset', { className: 'pref-children', }));
 			const options = style.options[name].children;
 			if (host.firstChild && options.length && host.firstChild.pref === options[0]) { return; }
 			Array.from(host.childNodes).forEach(_=>_.remove()); // must slice or iteration breaks
 			options.length && new Editor({ options, host, });
 			element.querySelector(`.pref-name-${name}`).classList[options.length ? 'remove' : 'add']('empty');
 		});
+		renderInfo(style.meta, element);
 	}
 }, { owner: window, });
 
 function createRow(style) {
 	const element = new Editor({
 		options: style.options, onCommand: onCommand.bind(null, style),
-		host: createElement('div', { id: style.id, className: style.disabled ? 'disabled' : '', dataset: { url: style.url, }, }),
+		host: $('div', { id: style.id, className: style.disabled ? 'disabled' : '', dataset: { url: style.url, }, }),
 	}); element._style = style;
+	style instanceof LocalStyle && (element.querySelector('.pref-name-name').disabled = 'local');
 	!style.options.include.children.length && element.querySelector('.pref-name-include').classList.add('empty');
 	!style.options.options.children.length && element.querySelector('.pref-name-options').classList.add('empty');
+	renderInfo(style.meta, element);
 	return element;
+}
+
+function renderInfo(meta, element) {
+	const enable = element.querySelector('.pref-name-info'); enable.style.display = '';
+	const host = enable.querySelector('span[href="info"]'); host.textContent = '';
+	if (!meta.version && !meta.author && !meta.description/* && !...*/) { enable.style.display = 'none'; return; }
+	host.appendChild($('fieldset', { classList: 'style-info pref-children', }, [
+		meta.description && $('span', { classList: 'description', innerHTML: (
+			sanatize('<b>Description</b>: '+ meta.description)
+		), }),
+		meta.author && $('p', { classList: 'author', }, [
+			$('b', [ 'Author', ]), ': ', meta.author.name,
+			...(meta.author.email ? [ ' ', $('a', { href: 'mailto:'+ meta.author.email, }, [ '✉', ]), ] : [ ]),
+			...(meta.author.url ? [ ' ', $('a', { href: meta.author.url, target: '_blank', }, [ '🏠', ]), ] : [ ]), // 🏠 ⌂
+		]),
+		meta.license && $('p', { classList: 'license', }, [
+			$('b', [ 'License', ]), ': ', meta.license,
+		]),
+		meta.version && $('p', { classList: 'version', }, [
+			$('b', [ 'Version', ]), ': ', meta.version,
+		]),
+		meta.homepageURL && $('a', { classList: 'homepageURL', href: meta.homepageURL, target: '_blank', }, 'Style Homepage'),
+		meta.homepageURL && ' ',
+		meta.supportURL  && $('a', { classList: 'supportURL', href: meta.supportURL,  target: '_blank', }, 'Support Page'),
+	]));
 }
 
 async function onCommand(style, _, action) { try { switch (action) {

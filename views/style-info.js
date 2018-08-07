@@ -24,15 +24,19 @@ function showInfo() {
 	style.onChanged(showInfo, { owner: window, });
 
 	document.body.innerHTML = `
-		<h2 id=title></h2> <p>Fully processed style as currently applied:</p>
+		<h2><span id=title></span><small> (<span id=id></span>)</small></h2> <p>Fully processed style as currently applied:</p>
+		<h3>Parsing errors <button id=reload>Re-parse</button></h3> <pre><code id=errors></pre></code>
 		<h3>Metadata</h3> <pre><code id=meta></pre></code>
 		<h3>Webpage</h3> <pre><code id=web></pre></code>
 		<h3>userContent.css</h3> <pre><code id=content></pre></code>
 		<h3>userChrome.css</h3> <pre><code id=chrome></pre></code>
 	`;
 
+	document.getElementById('reload').onclick = _=>!_.button && style.reload();
+
 	Object.entries({
-		title: style.url,
+		title: style.url, id: style.id,
+		errors: style.errors ? style.errors.join('\n') : 'Not cached, please re-parse!',
 		meta: JSON.stringify(style.meta, (key, value) => key === 'restrict' ? undefined : value, '\t').slice(2, -2).replace(/^\t/gm, ''),
 		web: style.web ? style.web.code : '',
 		content: style.chrome && style.chrome.content ? style.chrome.content : '',

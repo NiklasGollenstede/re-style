@@ -1,7 +1,6 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/marked/marked.min': marked,
 	'node_modules/regexpx/': RegExpX,
-	'./parser': { checkBalancedBrackets, },
 }) => {
 
 marked.setOptions({
@@ -51,21 +50,32 @@ const rDimension = RegExpX('n')`^(
 )$`;
 
 
-return function normalize(sheet, url) { {
-	function onerror(message) { console.error(message, 'in style loaded from', url); }
+function normalize(sheet, url) { {
+	function onerror(message) {
+		sheet.errors.push(message);
+		console.error(message, 'in style loaded from', url);
+	}
 	function testType(type, key, value) {
 		if (type === 'array' && Array.isArray(value)) { return true; }
 		if (typeof value !== type || value === null) { onerror(
 			`Metadata key ${key} must be a ${type}, but is ${ value ===  null ? null : 'a '+ typeof value }`,
 		); return false; } return true;
 	}
+	function testUrl(key, value) {
+		let url; try { url = new URL(value); } catch { }
+		if (url && (/^https?:$/).test(url.protocol)) { return url.href; }
+		onerror(`Metadata URL ${key} is not a valid HTTP(S) URL: ${value}`); return null;
+	}
 
 	const old = sheet.meta, meta = sheet.meta = { }; for (let [ key, value, ] of Object.entries(old)) { try { switch (key) {
 		case 'title': { testType('string', key, value) && (meta.name = value); } break;
 		case 'licence': { testType('string', key, value) && (meta.license = value); } break;
 		case 'name': case 'namespace': case 'version': case 'license': case 'preprocessor': { testType('string', key, value) && (meta[key] = value); } break;
-		case 'author': { if (testType('string', key, value)) { const [ , name, email, url, ] = (/^\s*([^]*?)\s*(?:<([^]*?)>)?\s*(?:\(([^]*?)\))?\s*$/).exec(value); meta.author = { name, email, url, }; } } break;
-		case 'homepageURL': case 'supportURL': { testType('string', key, value) && (meta[key] = value); } break; // TODO: enforce valid URLs
+		case 'author': { if (testType('string', key, value)) {
+			const [ , name, email, url, ] = (/^\s*([^]*?)\s*(?:<([^]*?)>)?\s*(?:\(([^]*?)\))?\s*$/).exec(value);
+			meta.author = { name, email, url: url ? testUrl('author.url', url) : undefined, };
+		} } break;
+		case 'homepageURL': case 'supportURL': { testType('string', key, value) && testUrl(key, value) && (meta[key] = value); } break; // TODO: enforce valid URLs
 		case 'description': { testType('string', key, value) && (meta.description = renderBlock(value)); } break;
 
 		case 'vars': value = value.map((tokens, index) => {
@@ -120,9 +130,9 @@ return function normalize(sheet, url) { {
 					switch (entry.type) {
 						case 'domain': {
 							option.input = { type: 'string', default: 'example.com', };
-							option.restrict = { match: { exp: (/^\S*$/), message: `Domains must not contain whitespaces`, }, unique: '.', };
+							option.restrict = { match: { exp: { source: (/^\S*$/).source, }, message: `Domains must not contain whitespaces`, }, unique: '.', };
 						} break; // no other types yet
-						default: { onerror(new Error(`Unexpected include type ${entry.type}`)); return; }
+						default: { onerror(`Unexpected include type ${entry.type}`); return; }
 					}
 
 					if (typeof entry.default === 'string') { entry.default = [ entry.default, ]; }
@@ -154,7 +164,9 @@ return function normalize(sheet, url) { {
 						} break;
 
 						case 'integer': case 'number': {
-							option.restrict = { type: 'number', match: entry.type === 'integer' && { exp: (/^-?\d+$/), message: 'This value must be an integer', }, };
+							option.restrict = { type: 'number', match: entry.type === 'integer' && {
+								exp: { source: (/^-?\d+$/).source, }, message: 'This value must be an integer', },
+							};
 							('min' in entry) && (option.restrict.from = +entry.min); ('max' in entry) && (option.restrict.to = +entry.max);
 							if (option.input.suffix && rUnit.test(option.input.suffix)) { option.unit = option.input.suffix; }
 						} break;
@@ -172,7 +184,8 @@ return function normalize(sheet, url) { {
 						case 'css-dimension': {
 							option.input.type = 'string'; // TODO: use shorter field
 							option.restrict = { type: 'string', match: {
-								exp: rDimension, message: 'This value must be an CSS dimension as <number><unit>,\n'
+								exp:  { source: rDimension.source, },
+								message: 'This value must be an CSS dimension as <number><unit>,\n'
 								+ 'where unit is e.g. px, %, em, deg, ms, dpi.\nOr a keyword like auto, inherit or unset.',
 							}, };
 						} break;
@@ -180,22 +193,25 @@ return function normalize(sheet, url) { {
 						case 'css-selector': case 'css-selector-multi': {
 							option.input.type = entry.type === 'css-selector' ? 'string' : 'code';
 							option.restrict = { match: {
-								exp: rSelector, message: `The value may not be empty, end with a ',', contain unescaped ';', '{' or '}' or end within strings or comments`,
-							}, custom: checkBalancedBrackets, };
+								exp:  { source: rSelector.source, },
+								message: `The value may not be empty, end with a ',', contain unescaped ';', '{' or '}' or end within strings or comments`,
+							}, custom: 'balancedBrackets', };
 						} break;
 
 						case 'css-value': {
 							option.input.type = 'string';
 							option.restrict = { match: {
-								exp: rValue, message: `The value may not contain unescaped ':', ';', '{' or '}' or end within strings or comments`,
-							}, custom: checkBalancedBrackets, };
+								exp:  { source: rValue.source, },
+								message: `The value may not contain unescaped ':', ';', '{' or '}' or end within strings or comments`,
+							}, custom: 'balancedBrackets', };
 						} break;
 
 						case 'css-declarations': {
 							option.input.type = 'code';
 							option.restrict = { match: {
-								exp: rDeclarations, message: `The value may not contain unescaped '{' or '}' or end within strings or comments`,
-							}, custom: checkBalancedBrackets, };
+								exp:  { source: rDeclarations.source, },
+								message: `The value may not contain unescaped '{' or '}' or end within strings or comments`,
+							}, custom: 'balancedBrackets', };
 						} break;
 
 						default: { onerror(`Unexpected option type ${entry.type}`); return; }
@@ -219,6 +235,8 @@ return function normalize(sheet, url) { {
 		meta.options = meta.options.filter(_=>_.default !== undefined);
 	}
 
-} return sheet; };
+} return sheet; }
+
+return { normalize, };
 
 }); })(this);

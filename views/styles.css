@@ -28,6 +28,7 @@
 #local .pref-name-controls input[data-id="update"],
 #local .pref-name-controls input[data-id="remove"],
 #local .pref-name-edit,
+.pref-name-info.empty,
 .pref-name-include.empty,
 .pref-name-options.empty
 { display: none; }
@@ -76,6 +77,7 @@
 }
 
 .pref-name-edit,
+.pref-name-info,
 .pref-name-include,
 .pref-name-options {
 	display: inline;
@@ -84,17 +86,20 @@
 	margin-right: 1em;
 }
 .pref-name-edit>.toggle-switch,
+.pref-name-info>.toggle-switch,
 .pref-name-include>.toggle-switch,
 .pref-name-options>.toggle-switch {
 	line-height: 26px;
 }
 .pref-name-edit>.toggle-switch>*,
+.pref-name-info>.toggle-switch>*,
 .pref-name-include>.toggle-switch>*,
 .pref-name-options>.toggle-switch>* {
 	display: inline-block;
 	vertical-align: middle;
 }
 .pref-name-edit>.toggle-target,
+.pref-name-info>.toggle-target,
 .pref-name-include>.toggle-target,
 .pref-name-options>.toggle-target {
 	margin-top: 8px;
@@ -103,6 +108,7 @@
 	border: none; padding: 0; margin: 5px 0 20px 0;
 }
 .pref-name-edit .reset-values,
+.pref-name-info>.reset-values,
 .pref-name-include>.reset-values,
 .pref-name-options>.reset-values {
 	display: none;
@@ -111,17 +117,21 @@
 	resize: vertical;
 	min-width: calc(100vw - 50px); min-height: 30vh;
 }
+.pref-name-info .input-row,
 .pref-name-include .input-row,
 .pref-name-options .input-row,
+.pref-name-info .inputs-wrapper,
 .pref-name-include .inputs-wrapper,
 .pref-name-options .inputs-wrapper {
 	width: 100%;
 }
+.pref-name-info .pref-children,
 .pref-name-include .pref-children,
 .pref-name-options .pref-children {
 	margin: 5px 0 5px 0;
 	border-radius: 3px;
 }
+.pref-name-info .pref-children .pref-title,
 .pref-name-include .pref-children .pref-title,
 .pref-name-options .pref-children .pref-title {
 	display: block;
@@ -129,11 +139,13 @@
 	font-weight: bold;
 	margin: 5px 0 3px 0;
 }
+.pref-name-info .pref-children .pref-description,
 .pref-name-include .pref-children .pref-description,
 .pref-name-options .pref-children .pref-description {
 	display: block;
 	margin: 3px 0 5px 0;
 }
+.pref-name-info .pref-children .values-container,
 .pref-name-include .pref-children .values-container,
 .pref-name-options .pref-children .values-container {
 	margin: 5px 0;
@@ -148,6 +160,17 @@
 .add-value-entry {
 	margin: 0 3px 3px 0;
 }
+
+/* style-info */
+.style-info {
+	user-select: text;
+	-moz-user-select: text;
+}
+.style-info .author a {
+	text-decoration: none;
+	filter: grayscale(.6);
+}
+
 
 /* "create local copy" button */
 .pref-name-edit>.toggle-target>.values-container,

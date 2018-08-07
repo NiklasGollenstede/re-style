@@ -11,13 +11,14 @@
  * @property  {namespace}  namespace  The sheets default namespace as it appeared in the code.
  * @property  {object}     meta       File metadata parsed from the `==UserStyle==` comment block.
  *                                    Tries to is infer at least the `.meta.name` if no metadata block is found.
+ * @property  {[string]}   errors     List of error messages that occured during the lifetime of this `Sheet`.
  */
 class Sheet {
 
 	/**
 	 * Parses a code string into a `Sheet` with `Section`s.
 	 * @param  {string}    code      Style sheet source code string.
-	 * @param  {function}  .onerror  Function called with (error) when a parsing error occurs.
+	 * @param  {function}  .onerror  Function called with (string|error) when a parsing error occurs.
 	 *                               Default behavior is to abort parsing and return with an incomplete list of `.sections`
 	 * @return {Sheet}               The parsed `Sheet`.
 	 */
@@ -32,7 +33,7 @@ class Sheet {
 
 	/// creates a sheet from its components
 	constructor(meta, sections, namespace) {
-		this.meta = meta; this.sections = sections; this.namespace = namespace;
+		this.meta = meta; this.sections = sections; this.namespace = namespace; this.errors = [ ];
 	}
 
 	/// creates a clone of the `Sheet` but sets a different `.sections` Array.
@@ -132,7 +133,7 @@ Sheet.Section = Section;
 
 //// start implementation
 
-function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing error', error), } = { }) {
+function Sheet_fromCode(css, { onerror, } = { }) {
 
 	// Gets the char offset (within the source) of a token by its index in `tokens`.
 	let lastLoc = 0, lastIndex = 0; function locate(index) { // Must be called with increasing indices.
@@ -141,12 +142,16 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 
 	const globalTokens = [ ], sections = [ new Section([ ], [ ], [ ], [ ], globalTokens), ];
 	const meta = { }, self = new Sheet(meta, sections, '');
+	typeof onerror !== 'function' && (onerror = error => {
+		self.errors.push(typeof error === 'string' ? error : error && error.message);
+		console.warn('CSS parsing error', error);
+	});
 
 	const tokens = tokenize(css || '');
 	loop: for (let index = 0; index < tokens.length; ++index) { switch (tokens[index]) {
 		case '@namespace': {
 			const end = tokens.indexOf(';', index);
-			if (end < 0) { onerror(Error(`Missing ; in namespace declaration`)); break loop; }
+			if (end < 0) { onerror(`Missing ; in namespace declaration`); break loop; }
 			const parts = tokens.slice(index + 1, end).filter(_=>!(/^\s*$|^\/\*/).test(_));
 			switch (parts.length) {
 				case 0: break; // or throw?
@@ -157,19 +162,19 @@ function Sheet_fromCode(css, { onerror = error => console.warn('CSS parsing erro
 		} break;
 		case '@document': case '@-moz-document': {
 			const start = tokens.indexOf('{', index);
-			if (start < 0) { onerror(new Error(`Missing block after @document declaration`)); break loop; }
+			if (start < 0) { onerror(`Missing block after @document declaration`); break loop; }
 			const parts = tokens.slice(index +1, start).filter(_=>!(/^\s*$|^,$|^\/\*/).test(_));
 			const urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ];
 			parts.forEach(decl => {
 				const match = rUrlRule.exec(decl);
-				if (!match) { onerror(Error(`Can't parse @document rule \`\`\`${ decl }´´´`)); return; }
+				if (!match) { onerror(`Can't parse @document rule \`\`\`${ decl }´´´`); return; }
 				const { type, string, raw = evalString(string), as, } = match;
 				switch (type) {
 					case 'url': urls.push({ value: raw, as, }); break;
 					case 'url-prefix': urlPrefixes.push({ value: raw, as, }); break;
 					case 'domain': domains.push({ value: raw, as, }); break;
 					case 'regexp': regexps.push({ value: raw, as, }); break;
-					default: onerror(new Error(`Unrecognized @document rule ${ type }`)); return;
+					default: onerror(`Unrecognized @document rule ${ type }`); return;
 				}
 			});
 			const end = skipBlock(tokens, start);

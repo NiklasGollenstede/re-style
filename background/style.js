@@ -8,7 +8,8 @@
 	'./chrome/': ChromeStyle,
 	'./web/': WebStyle,
 	'./parser': Sheet,
-	normalizeMeta,
+	'./util': { sha1, deepFreeze, },
+	Meta,
 }) => {
 
 /**
@@ -52,6 +53,8 @@ class Style {
 	get web() { return Self.get(this).web; }
 	/// Parsed metadata as frozen JSON object
 	get meta() { return Self.get(this).meta; }
+	/// List of error messages that occured during the last parsing, `null` if unknown
+	get errors() { const self = Self.get(this); return self._sheet && self._sheet.errors || null; }
 
 	/// Gets/sets the disabled state. Disabled Styles don't have .`chrome` and `.web`
 	/// and thus won't affect the browser UI or websites.
@@ -95,6 +98,8 @@ const fireChanged = setEvent(Style, 'onChanged', { lazy: false, async: true, });
 setEventGetter(Style, 'changed', Self, { async: true, });
 
 //// start implementation
+
+const disclaimer = `<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`;
 
 const sXulNs = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
 const rXulNs = RegExpX`^(?: # should also remove single backslashes before testing against this
@@ -140,7 +145,7 @@ class _Style {
 		this._sheet = this._chrome = this._content = this._web = null;
 		this.fireChanged = null; // set by setEventGetter
 
-		const name = this.name = url.split(/[/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/[.](?:css|json)$/, '');
+		const name = this.name = url.split(/[/\\]/g).pop().replace(/(^|-)(.)/g, (_, s, c) => (s ? ' ' : '') + c.toUpperCase()).replace(/(?:[.]user)?(?:[.]css)$/, '');
 		this.meta = Object.freeze({ name, }); this.url = url;
 		const id = this.id = (await Style.url2id(url));
 		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
@@ -161,7 +166,7 @@ class _Style {
 		self._ = this; // only for debugging
 		if (styles.has(id)) { throw new Error(`Duplicate Style id`); } styles.set(id, self);
 
-		this.url = url; this.id = id; this.code = code; this.name = name; this.meta = deepFreeze(meta);
+		this.url = url; this.id = id; this.code = code; this.name = name; this.meta = meta;
 		this.options = null; this.include = include.map(_=>RegExp(_)); this.disabled = disabled;
 		this.chrome = chrome ? ChromeStyle.fromJSON(chrome) : null;
 		this.web = web ? WebStyle.fromJSON(web) : null;
@@ -191,7 +196,7 @@ class _Style {
 	/// applies the `._sheet?` to the UI and browser
 	update() {
 		if (this.disabled) { this.parseIncludes(); this._fireChanged(); return; }
-		const sheet = this._sheet = this._sheet || normalizeMeta(Sheet.fromCode(this.code), this.url);
+		const sheet = this._sheet = this._sheet || Meta.normalize(Sheet.fromCode(this.code), this.url);
 		this.updateName(); this.meta = deepFreeze(sheet.meta);
 		this.parseIncludes(); this.parseSections();
 		const { dynamicIncludes, dynamicOptions, } = this.rebuildOptions();
@@ -200,16 +205,13 @@ class _Style {
 		this.applyStyle();
 	}
 
-	/// gets `.name` from `._sheet.meta` or a `._sheet.sections` include rule
+	/// update `.name` from `._sheet.meta`
 	updateName() {
-		const { _sheet: { meta, sections, }, } = this;
-		if (!meta.name) { meta.name = (/^\d*$/).test(this.name) && sections.length >= 1 ? (
-			(sections[1].domains || sections[1].urlPrefixes || sections[1].urls)[0] || this.name
-		) : this.name; }
+		const { _sheet: { meta, }, } = this;
 
-		if (meta.name !== this.name) {
-			this.name = meta.name;
-			if (!this.options.children.name.values.isSet) { // update UI
+		if (meta.name && meta.name !== this.name) {
+			this.name = meta.name; // which is also what the UI defaults to,
+			if (!this.options.children.name.values.isSet) { // so update the UI
 				this.options.children.name.value = ''; this.options.children.name.reset();
 			}
 		}
@@ -217,7 +219,7 @@ class _Style {
 
 	/// refreshes `.includes` from `._sheet?`
 	parseIncludes() {
-		const { sections, } = this._sheet = this._sheet || normalizeMeta(Sheet.fromCode(this.code), this.url);
+		const { sections, } = this._sheet = this._sheet || Meta.normalize(Sheet.fromCode(this.code), this.url);
 		const include = [ ]; sections.forEach(section =>
 			[ 'urls', 'urlPrefixes', 'domains', 'regexps', ].forEach(type => { try {
 				section[type].length && include.push(toRegExp[type](section[type].map(_=>_.value)));
@@ -228,7 +230,7 @@ class _Style {
 
 	/// refreshes `._chrome`, `._content` and `._web` from `._sheet?`
 	parseSections() {
-		const { sections, namespace, } = this._sheet = this._sheet || normalizeMeta(Sheet.fromCode(this.code), this.url);
+		const { sections, namespace, } = this._sheet = this._sheet || Meta.normalize(Sheet.fromCode(this.code), this.url);
 		const userChrome = this._chrome = [ ]; const userContent = this._content = [ ]; const webContent = this._web = [ ];
 		sections.forEach(section => {
 			const { urls, urlPrefixes, domains, regexps, } = section;
@@ -279,7 +281,10 @@ class _Style {
 			const dynamic = this.options.children[branch].children;
 			const rules = meta[branch]; if (dynamic.rules === rules) { return dynamic; } dynamic.rules = rules;
 			dynamic.splice(0, Infinity, ...(rules || [ ]).map(rule => {
-				const root = new Options({ model: [ rule, ], prefix: 'style.'+ this.id +'.'+ branch, storage, });
+				const root = new Options({
+					model: [ rule, ], prefix: 'style.'+ this.id +'.'+ branch, storage,
+					checks: { balancedBrackets: Sheet.checkBalancedBrackets, },
+				});
 				const option = root.children[0]; parent.set(option, root);
 				option.onChange(() => {
 					this.disabled = false;
@@ -401,6 +406,24 @@ class _Style {
 				{ type: 'control', id: 'remove',   label: 'Remove', },
 				{ type: 'hidden', suffix: `<span title="Only disables until the next restart, see below.">🛈</span>`, },
 			], },
+			info: {
+				title: 'Info',
+				description: `${disclaimer}<br><span href="info"></span>`,
+				expanded: false, default: false,
+			},
+			include: {
+				title: 'Add to',
+				description: `This style or parts of it can be applied to user-defined pages.<br>
+				You can edit these includes for this style here or add the current pages doain from the pop-up panel.<br>${disclaimer}`,
+				expanded: false, default: true,
+				children: 'dynamic',
+			},
+			options: {
+				title: 'Settings',
+				description: `This style has some custom style settings.<br>${disclaimer}`,
+				expanded: false, default: true,
+				children: 'dynamic',
+			},
 			edit: {
 				title: 'Edit',
 				description: `Please note that changes made here are not permanent and will be overwritten on the next update of this style.
@@ -410,40 +433,16 @@ class _Style {
 				children: {
 					code: { default: code, input: { type: 'code', lang: 'css', }, },
 					apply: { default: true, input: [
-						{ type: 'control', id: 'apply', label: 'Apply', },
+						{ type: 'control', id: 'apply',  label: 'Apply', },
 						{ type: 'control', id: 'unedit', label: 'Reset', },
+						{ type: 'control', id: 'info',   label: 'Info', },
 					], },
 				},
-			},
-			include: {
-				title: 'Add to',
-				description: `This style or parts of it can be applied to user-defined pages.<br>
-				You can edit these includes for this style here or add the current pages doain from the pop-up panel.<br>
-				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`,
-				expanded: false, default: true,
-				children: 'dynamic',
-			},
-			options: {
-				title: 'Settings',
-				description: `This style has some custom style settings.<br>
-				<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`,
-				expanded: false, default: true,
-				children: 'dynamic',
 			},
 		};
 		this.options = new Options({ model, prefix: 'style.'+ this.id, storage, });
 	}
 }
-
-async function sha1(string) {
-	typeof string !== 'string' && (string = JSON.stringify(string)); // for the styles loaded from https://userstyles.org/styles/chrome/\d+.json
-	const hash = (await global.crypto.subtle.digest('SHA-1', new global.TextEncoder('utf-8').encode(string)));
-	return Array.from(new Uint8Array(hash)).map((b => b.toString(16).padStart(2, '0'))).join('');
-}
-
-function deepFreeze(json) { if (typeof json === 'object' && json !== null) {
-		Object.freeze(json); Object.values(json).forEach(deepFreeze);
-} return json; }
 
 return Style;
 

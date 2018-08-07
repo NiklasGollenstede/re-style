@@ -23,7 +23,7 @@ const sources = [ {
 	getStyle(url, [ , repo, path, ]) { return `https://raw.githubusercontent.com/${repo}/${path}`; },
 }, {
 	title: 'GitLab',
-	match: (/^https:\/\/gitlab\.com\/([\w-]+\/[\w-]+\/[\w-]+)\/blob\/(.*\.css.*)$/),
+	match: (/^https:\/\/gitlab\.com\/([\w-]+(?:\/[\w-]+)+)\/blob\/(.*\.css.*)$/),
 	getStyle(url, [ , repo, path, ]) { return `https://gitlab.com/${repo}/raw/${path}`; }, // TODO: test this
 }, ];
 

@@ -63,13 +63,15 @@ function Style_constructor(json) {
 	this.onChanged(onChanged);
 	return this;
 }
-async function onChanged(style, id) { try {
+async function onChanged(style, id) { try { try {
 	void style.id;
 } catch (_) { { // destroyed
 	(await Storage.remove('remote.cache.'+ id));
 	styles.delete(id); Self.delete(style);
 } return; } { // updated
-	Storage.set('remote.cache.'+ style.id, style.toJSON());
+	(await Storage.set('remote.cache.'+ style.id, style.toJSON()));
+} } catch (error) {
+	notify.error('Style not saved', error);
 } }
 
 const urlList = options.remote.children.urls.values; const styles = new Map/*<id, RemoteStyle>*/;
@@ -127,7 +129,7 @@ async function update(style, query) {
 }
 async function prepareUpdate(style, query) {
 	query = query || style.options.query.value;
-	const name = style.meta.name || 'to be added';
+	const name = style.options.name.value || 'to be added';
 
 	let type, data; try {
 		const reply = (await global.fetch(style.url + (query ? query.replace(/^\??/, '?') : '')));
