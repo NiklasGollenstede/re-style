@@ -74,7 +74,7 @@ const prefix = `\n/* Do not edit this section of this file (outside the Browser 
 // The media query seems to "reset" the parser (and doesn't do anything itself).
 // At the same time it serves as split point when the changes to the files are applied to the local edit files.
 const infix  = `\n/*"*//*'*/;};};};};};}@media not all {} /* reset sequence, do not edit this line */ /*NEXT:${uuid}*/\n`;
-const suffix = `/*END:${uuid}*/\n`;
+const suffix = `\n/*END:${uuid}*/\n`;
 // extracts reStyles section from the files. This allows other content to coexist with reStyles managed code
 const rExtract = RegExpX`
 	(?:^|\n) .* \/\*START:${uuid}\*\/ .*\n ([^]*) \n.*\/\*END:${uuid}\*\/ (?:\n|$)

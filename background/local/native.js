@@ -34,8 +34,8 @@ module.exports = {
 	 */
 	async writeStyle(path, css) {
 		path = normalize(path); if (
-			!(/\.css$/).test(path) || (/\/\./).test(path)
-			|| !(await get(FS.access, path, FS.constants.W_OK).then(_=>1,_=>0)) // writable
+			!(/\/[^.][^/\\]+\.css$/).test(path)
+			|| (await get(FS.access, path, FS.constants.W_OK).then(_=>0/*OK*/,_=>1/*not OK*/))
 		) { throw new Error(`Can't write to "${path}"`); }
 		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), 'utf-8'));
 	},
@@ -47,8 +47,8 @@ module.exports = {
 	 */
 	async createStyle(path, css) {
 		path = normalize(path); if (
-			!(/\.css$/).test(path) || (/\/\./).test(path)
-			|| !(await get(FS.access, path).catch(_=>true)) // exists
+			!(/\/[^.][^/\\]+\.css$/).test(path)
+			|| (await get(FS.access, path).then(_=>1/*exists*/, _=>_.code !== 'ENOENT'/*can't write*/))
 		) { throw new Error(`Can't create file "${path}"`); }
 		(await get(FS.writeFile, path, css.replace(/\n/g, EOL), { encoding: 'utf-8', flags: 'wx', }));
 	},
@@ -59,8 +59,8 @@ module.exports = {
 	 */
 	async openStyle(path) {
 		path = normalize(path); if (
-			!(/\.css$/).test(path) || (/\/\./).test(path)
-			|| (await get(FS.access, path).catch(_=>true)) // !exists
+			!(/\/[^.][^/\\]+\.css$/).test(path)
+			|| (await get(FS.access, path).then(_=>0/*OK*/,_=>1/*not OK*/))
 		) { throw new Error(`Can only open existing non-hidden .css files`); }
 		switch (process.platform) {
 			case 'win32':  (await

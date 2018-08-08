@@ -84,7 +84,7 @@ async function enable(force) {
 	let files; (await Native.on((onSpawn = async process => {
 		native = (await process.require(require.resolve('./native')));
 
-		files = (await native.readStyles(options.local.children.folder.value, onCange, options.local.children.folder.values.isSet));
+		files = (await native.readStyles(options.local.children.folder.value, onCange, options.local.children.folder.values.isSet || force === 'create'));
 
 		if (options.local.children.chrome.value) { debounceIdle(() => {
 			files && active && native && native.watchChrome(onChromeChange);
@@ -93,7 +93,10 @@ async function enable(force) {
 
 	if (files === null) { {
 		Native.on.removeListener(onSpawn); active = false; letRemoteProceed();
-		notify.error(`Can't read local dir`, `The folder "${options.local.children.folder.value}" does not exist or can not be read. To use local styles, create the folder or change it in the options.`);
+		notify.error(`Can't read local dir`,
+			`The folder "${options.local.children.folder.value}" does not exist or can not be read.`,
+			`To use local styles, change the location in the options, create the folder manually or click here to do it automatically.`
+		).then(_=>_ && options.local.value && enable('create'));
 	} return; }
 
 	// console.log('got local styles', files);

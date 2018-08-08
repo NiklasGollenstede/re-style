@@ -112,6 +112,9 @@ create.addEventListener('click', async event => { try {
 		name = name.slice(0, -4) +'-'+ Math.random().toString(16).slice(2) +'.css';
 		path = (await LocalStyle.createStyle(name, file));
 	}
+//	notify.success( // clicking the notification doesn't work if it is directly replaced by the restart notification
+//		`Created new Style at`, path, `Click here to open it!`,
+//	).then(_=>_ && LocalStyle.openStyle(name).catch(notify.error));
 	notify.success(`Created new Style at`, path);
 	LocalStyle.openStyle(name).catch(e => console.error(e));
 } catch (error) { notify.error(error); } });
