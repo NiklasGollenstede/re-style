@@ -127,6 +127,15 @@ const model = {
 				restrict: { type: 'string', },
 				input: { type: 'string', },
 			},
+			uiTheme: {
+				title: 'UI Theme',
+				default: 'dark',
+				restrict: { match: (/^dark$|^light$/), },
+				input: { type: 'menulist', options: [
+					{ value: 'dark',  label: `Dark`, },
+					{ value: 'light', label: `Light`, },
+				], suffix: '<small>incomplete</small>', },
+			},
 		},
 	},
 	debug: {

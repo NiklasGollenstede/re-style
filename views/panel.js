@@ -58,7 +58,7 @@ if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div 
 		#restart code { font-size: 120%; }
 	</style>
 	The UI styles have changed. The browser has to be restarted to apply the changes.<br>
-	You can do that e.g. by prssting <code>Shift</code>+<code>F2</code> and typing <code>restart</code> (then <code>Enter</code>).
+	You can do that e.g. opening <code>about:profiles</code> and clicking <b>Restart normally</b> at the top left.
 </div>`); }
 
 

@@ -133,7 +133,7 @@ async function prepareUpdate(style, query) {
 
 	let type, data; try {
 		const reply = (await global.fetch(style.url + (query ? query.replace(/^\??/, '?') : '')));
-		if (reply.status !== 200) { throw new Error(reply.statusText); }
+		if (reply.status !== 200) { throw new Error(`Network error (${reply.statusText})`); }
 		type = reply.headers.get('content-type'); data = (await reply.text());
 	} catch (error) { throw new Error(`Failed to load style ${name}: ${error.message}`); }
 
@@ -143,7 +143,7 @@ async function prepareUpdate(style, query) {
 	} else if ((/^text\/(?:css|plain)(?:;|$)/).test(type)) { // also accepts plain text as css
 		code = data.replace(/\r\n?/g, '\n');
 	} else {
-		throw new TypeError(`Unexpected MIME-Type ${type} for style ${name}`);
+		throw new TypeError(`Unexpected Content-Type ${type} for style ${name}`);
 	}
 	return async () => {
 		(await style.setSheet(code));

@@ -46,6 +46,7 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'web-ext-utils/options/editor/about.css',
 		'web-ext-utils/options/editor/about.js',
 		'web-ext-utils/options/editor/dark.css',
+		'web-ext-utils/options/editor/light.css',
 		'web-ext-utils/options/editor/index.css',
 		'web-ext-utils/options/editor/index.js',
 		'web-ext-utils/options/index.js',

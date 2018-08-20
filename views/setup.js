@@ -9,11 +9,10 @@ document.body.innerHTML = `
 		:root { font-family: Segoe UI, Tahoma, sans-serif; }
 		body { margin: 20px; }
 		code { padding: 2px 3px; border-radius: 3px; }
-		button {
-			color: white; background-color: black;
-			border: 1px solid white; border-radius: 3px;
+		input {
 			outline: none; padding: 2px 7px;
 			height: 25px; font-size: 15px;
+			border-width: 1px; border-style: solid; border-radius: 2px;
 		}
 		#todo:not(.active), #done:not(.active) { display: none; }
 		p { margin: .4em -.5em .2em; padding: .1em .5em 0.3em; } #error { background: #7a3300; }
@@ -22,7 +21,7 @@ document.body.innerHTML = `
 	<div id=todo class=active>
 		<p>To load local styles and apply styles to the browser UI of Firefox, reStyle needs access to the NativeExt extension.</p>
 		<p>Please <a href id=extension target=_blank>install</a> the NativeExt extension and follow its setup instructions,
-			then click this <button id=request>Request Permission</button> button.</p>
+			then click this <input type=button id=request value="Request Permission"> button.</p>
 		<p id=error style="display: none">Error: <span id=message></span></p>
 	</div><div id=done>
 		<p>It seems you are all set!</p>

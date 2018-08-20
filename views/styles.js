@@ -25,12 +25,13 @@ const Sections = {
 		Type: LocalStyle,
 		title: 'Local',
 		empty: `To start adding local styles, follow the <a href="#setup">setup</a> and enable <a href="#options#.local">Development Mode</a>.`,
-		after: `To disable local styles permanently, add their names to the <a href="#options#.local.exclude">exclude list</a>.`,
+		after: `To disable local styles permanently, add their names to the <a href="#options#.local.exclude" target="_top">exclude list</a>.`,
 	},
 };
 
+document.head.appendChild($('base', { target: '_blank', })); // open all links inserted through styles `.description`s etc in new tabs
 document.head.appendChild($('style', [ editorIndexCss, ]));
-document.head.appendChild(document.querySelector('style')); // editor/dark.css
+document.head.appendChild(document.querySelector('style')); // editor/(dark|light).css
 document.head.appendChild($('style', [ css, ]));
 
 for (const [ name, { Type, title, before, empty, after, }, ] of Object.entries(Sections)) {

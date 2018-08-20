@@ -99,7 +99,7 @@ function normalize(sheet, url) { {
 					if (Array.isArray(rest)) { rest = rest.reduce((o, k) => ((o[k] = undefined), o), { }); }
 					if (!testType('object', 'var.'+ option.name +'.options', rest)) { return null; }
 					const o = option.options = Object.entries(rest).map(([ key, value, ]) => ({
-						value: value === undefined ? (/^[^:]*/).exec(key)[0] : value, label: key.replace(/^[^:]*:?/, ''),
+						value: value === undefined ? (/^[^:]*/).exec(key)[0] : value, label: key.replace(/^[^:]*:/, ''),
 					})); option.default = o.length ? o[0].value : undefined;
 				} break;
 			} return option;
