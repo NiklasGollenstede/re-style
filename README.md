@@ -33,12 +33,23 @@ As an experimental feature, reStyle can detect these on-disc changes and map the
 In order to do the things described above, <a href="https://github.com/NiklasGollenstede/native-ext">NativeExt</a> must be installed on the system.
 The add-on contains instructions on how to do that easily.
 
+
+<b>Permissions used</b>
+
+- "Access your data for all websites": To apply styles to any website you choose.
+- "Access browser tabs": Apply styles to existing tabs (when installed/enabled/started).
+- "Access browser activity during navigation": Apply styles to new tabs/pages.
+- "Exchange messages with programs other than Firefox": Use NativeExt if installed. Useless otherwise.
+- "Display notifications to you": Success messages after user actions, error messages. <!-- Optional for --> Status changes.
+- "Access recently closed tabs": Under some rare conditions, reStyle needs to open temporary popups. This is used to remove them from the history after they are closed.
+
+
 <b>Implementation status</b>
 
 Reading styles locally, re-applying them on changes and applying UI styles works as intended (there is no way around the restart requirement).
-Applying normal content styles works.
-Updates of remote styles (those installed from the internet) only happen when explicitly requested.
-The UI of this add-on itself still needs some work.
+Applying normal content styles works, bit is still somewhat expensive. Improvements here require patches to Firefox.
+Automatic updates of remote styles (those installed from the internet) can not be disabled per style.
+The initial setup UI of this add-on itself still needs some work.
 
 <b>Meta comments</b>
 
