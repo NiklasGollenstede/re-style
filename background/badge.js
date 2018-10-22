@@ -1,9 +1,11 @@
 (function(global) { 'use strict'; define(async ({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { browserAction, Tabs, rootUrl, },
+	'node_modules/web-ext-utils/browser/storage': { local: Storage, },
 	'node_modules/web-ext-utils/browser/version': { fennec, },
 	'node_modules/web-ext-utils/loader/views': { getUrl, openView, },
 	'node_modules/web-ext-utils/utils/notify': notify,
 	'node_modules/es6lib/functional': { debounce, },
+	'common/options': options,
 	'views/': _, // put views in tabview
 	'./chrome/': ChromeStyle,
 	'./util': { isSubDomain, },
@@ -16,6 +18,9 @@
  */
 
 //// start implementation
+
+let notifyChange = true; options.chrome.children.notifyChange.whenChange(([ value, ]) => (notifyChange = value));
+const wantedRestart = Storage.get('wantedRestart'); Storage.set('wantedRestart', false);
 
 // browser_action (can not be set in manifest due to fennec incompatibility)
 browserAction.setPopup({ popup: getUrl({ name: 'panel', }).slice(rootUrl.length - 1).replace('#', '?w=350&h=250#'), });
@@ -36,7 +41,7 @@ Tabs.onActivated.addListener(({ tabId, }) => setBage(tabId));
 Tabs.onUpdated.addListener((tabId, change, { active, }) => active && ('url' in change) && setBage(tabId, change.url));
 async function setBage(tabId, url) {
 	if (arguments.length === 0) { // update all visible
-		return void (await Tabs.query({ active: true, })).forEach(({ id, url, }) => setBage(id, url));
+		(await Promise.all((await Tabs.query({ active: true, })).map(({ id, url, }) => setBage(id, url)))); return;
 	}
 	url = new global.URL(url || (await Tabs.get(tabId)).url);
 	let matching = 0, extra = 0; for (const [ , style, ] of Style) {
@@ -56,13 +61,18 @@ const colors = { normal: [ 0x00, 0x7f, 0x00, 0x60, ], restart: [ 0xa5, 0x50, 0x0
 browserAction.setBadgeBackgroundColor({ color: colors.normal, });
 let wasChanged = false; ChromeStyle.onWritten(changed => {
 	browserAction.setBadgeBackgroundColor({ color: changed ? colors.restart : colors.normal, });
-	(changed || wasChanged) && (changed ? notify.warn : notify.info)( // info or warn would be more appropriate than error ...
+	notifyChange && (changed || wasChanged) && (changed ? notify.warn : notify.info)( // info or warn would be more appropriate than error ...
 		`The UI styles were written`, changed
 		? `and have changed. The browser must be restarted to apply the changes!`
 		: `and changed back. No need to restart the browser anymore!`
 	);
 	wasChanged = changed; setBage();
+	Storage.set('wantedRestart', changed);
 });
+
+// i.e. clicked the  `Restart` button on `about:restartrequired` on behalf of reStyle
+wantedRestart && (await Tabs.query({ active: true, currentWindow: true, }))[0].url === 'about:restartrequired' // (can't filter by { url: 'about:restartrequired', })
+&& Tabs.update({ loadReplace: true, url: getUrl({ name: 'restarted', }), });
 
 return { update: setBage, };
 

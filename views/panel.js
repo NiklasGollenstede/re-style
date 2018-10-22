@@ -1,10 +1,10 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-	'node_modules/web-ext-utils/browser/': { Tabs, WebNavigation, },
+	'node_modules/web-ext-utils/browser/': { Tabs, WebNavigation, /*Permissions, Bookmarks,*/ },
 	'node_modules/web-ext-utils/loader/views': { openView, },
 	'node_modules/web-ext-utils/utils/notify': notify,
-	'node_modules/es6lib/dom': { createElement, },
+	'node_modules/es6lib/dom': { createElement, writeToClipboard, },
 	'background/style': Style,
-	'background/chrome/': ChromeSytle,
+	'background/chrome/': ChromeStyle,
 	'background/local/': LocalStyle,
 	'background/remote/': RemoteSytle,
 	'background/remote/map-url': mapUrl,
@@ -50,16 +50,29 @@ const url = new global.URL(tab.url);
 
 
 /// restart notice
-if (ChromeSytle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div id=restart>
+if (ChromeStyle.changed) { document.body.insertAdjacentHTML('afterbegin', `<div id=restart>
 	<style>
 		:root>body { background: #a75300; } /* orange color for the arrow-thing */
 		#restart { background: hsl(29.5, 79%, 58%); } /* filtered #a75300 */
 		#restart { padding: 8px; max-width: 350px; }
-		#restart code { font-size: 120%; }
+		#restart code { font-size: 120%; user-select: all; -moz-user-select: all; }
+		#restart-copy { padding: 0 3px 2px 3px; font-size: 80%; margin-bottom: -10px; }
 	</style>
 	The UI styles have changed. The browser has to be restarted to apply the changes.<br>
-	You can do that e.g. opening <code>about:profiles</code> and clicking <b>Restart normally</b> at the top left.
-</div>`); }
+	Please open <code>about:restartrequired</code> <button id="restart-copy" title="copy URL">📋</button> in a new tab.<br>
+	<!-- <small>reStyle can't open that page, but it can <a id=restart-bookmark href>create a bookmark</a> for you to use. -->
+</div>`); {
+	document.querySelector('#restart-copy').addEventListener('click', _=>!_.button && writeToClipboard('about:restartrequired').catch(notify.error));
+	/*document.querySelector('#restart-bookmark').addEventListener('click', async event => { try {
+		if (event.button) { return; } event.preventDefault();
+		if (!(await Permissions.request({ permissions: [ 'bookmarks', ], }))) // BUG[FF62]: "An unexpected error occurred"
+		{ notify.error('Access denied', `Can't create the bookmark withoutyour permission`); return; }
+		if ((await Bookmarks.search({ url: 'about:restartrequired', })).length)
+		{ notify.success('Exists already', `Please open the bookmark and select "Restart"`); }
+		(await Bookmarks.create({ title: 'Restart Firefox', url: 'about:restartrequired', }));
+		notify.success('Bookmark created', `Please open the bookmark and select "Restart"`);
+	} catch (error) { notify.error(error); } });*/
+} }
 
 
 /// all styles button
@@ -81,11 +94,11 @@ add.addEventListener('click', event => {
 	if (event.button) { return; }
 	const url = input.value.trim(); add.disabled = true;
 	RemoteSytle.add(url).then(() => {
-		notify.success(`Style added`, `from "${ url }"`);
+		notify.success(`Style added`, `from "${url}"`);
 		input.value = ''; add.disabled = false;
 	}, error => {
 		add.disabled = false;
-		notify.error(`Failed to add style from "${ url }"`, error);
+		notify.error(`Failed to add style from "${url}"`, error);
 	}, );
 });
 
@@ -93,10 +106,10 @@ add.addEventListener('click', event => {
 /// create style button
 const create = document.querySelector('#create');
 create.addEventListener('click', async event => { try {
-	if (!options.local.value) { return void notify.error(
+	if (!options.local.value) { notify.error(
 		`Development Mode disabled`,
-		`To create and edit Styles, Development mode has to be set up and enabled on the options page`,
-	); }
+		`To create and edit Styles, Development Mode has to be set up and enabled on the options page`,
+	); return; }
 	const props = {
 		title: tab.title,
 		url: url.href,
@@ -168,9 +181,9 @@ styles.forEach(appendStyle); function appendStyle(style) {
 /// "add domain to"
 const addTo = document.querySelector('#addTo');
 if ((/^https?:$/).test(url.protocol)) {
-	for (const [ , style, ] of Style) { for (const include of style.options.include.children) {
+	for (const [ , style, ] of Style) { if (!style.disabled) { for (const include of style.options.include.children) {
 		addTo.appendChild(createElement('option', { props: { style, include, }, }, [ `${include.model.title} (${style.options.name.value})`, ]));
-	} }
+	} } }
 	if (addTo.children.length > 1) {
 		const domain = url.hostname.replace(/^www[.]/, '');
 		addTo.children[0].textContent = `Add ${domain} to ...`;
@@ -186,17 +199,17 @@ if ((/^https?:$/).test(url.protocol)) {
 } else { addTo.style.display = 'none'; }
 
 
-/// reload on tab change
-function reload(info) { (
+{ /// reload on tab change
+	Tabs.onActivated.addListener(reload);
+	WebNavigation.onCommitted.addListener(reload); // actual url changes (Tabs.onUpdated) would be correct, but might be to annoying
+} window.addEventListener('unload', () => {
+	Tabs.onActivated.removeListener(reload);
+	WebNavigation.onCommitted.removeListener(reload);
+}); function reload(info) { (
 	info.transitionType // webNavigation
 	? info.tabId === tab.id && info.frameId === 0
 	: info.windowId === tab.windowId
 ) && window.location.reload(); }
-Tabs.onActivated.addListener(reload);
-WebNavigation.onCommitted.addListener(reload); // actual url changes (Tabs.onUpdated) would be correct, but might be to annoying
-window.addEventListener('unload', () => {
-	Tabs.onActivated.removeListener(reload);
-	WebNavigation.onCommitted.removeListener(reload);
-});
+ChromeStyle.onWritten(() => window.location.reload(), { owner: window, });
 
 }); })(this);

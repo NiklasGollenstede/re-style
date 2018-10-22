@@ -19,12 +19,15 @@ class ChromeStyle {
 	constructor(path, chrome, content) {
 		styles.add(this);
 		this.path = path;
-		// the sheets are loaded with origin 'user', which means their priority is below 'author' sheets unless they are !important, seee: https://developer.mozilla.org/en-US/docs/Web/CSS/Cascade#Cascading_order
-		// that means they are pretty useless unless they are !important ==> add that to all rules
-		this.chrome  = (chrome  || '').toString({ minify: false, important: true, namespace: false, }).trim().replace(/\r\n?/g, '\n');
-		this.content = (content || '').toString({ minify: false, important: true, namespace: false, }).trim().replace(/\r\n?/g, '\n');
-		this.sheets = { chrome, content, };
+		this.chrome  = stringify(chrome);
+		this.content = stringify(content);
 		applyStyles();
+	}
+
+	update(chrome, content) {
+		chrome = stringify(chrome); content = stringify(content);
+		if (this.chrome === chrome && this.content === content) { return; }
+		this.chrome = chrome; this.content = content; applyStyles();
 	}
 
 	static get changed() { return changed; }
@@ -65,6 +68,12 @@ class ChromeStyle {
 const fireWritten = setEvent(ChromeStyle, 'onWritten', { lazy: false, async: true, });
 
 //// start implementation
+
+function stringify(sheet) {
+	// the sheets are loaded with origin 'user', which means their priority is below 'author' sheets unless they are !important, seee: https://developer.mozilla.org/en-US/docs/Web/CSS/Cascade#Cascading_order
+	// that means they are pretty useless unless they are !important ==> add that to all rules
+	return (sheet || '').toString({ minify: false, important: true, namespace: false, }).trim();
+}
 
 // This is unique for each (firefox) extension installation and makes sure that prefix, infix and suffix are unpredictable for the style authors
 // and thus won't occur in the file on accident (or intentionally) where they don't belong.

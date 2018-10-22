@@ -11,6 +11,9 @@ module.exports = function({ options, /*packageJson,*/ manifestJson, files, }) {
 		'webNavigation',
 		'<all_urls>',
 	);
+	manifestJson.optional_permissions = [
+		'bookmarks', // create bookmark to `about:restartrequired`
+	];
 
 	!options.viewRoot && (options.viewRoot = options.chrome ? 'reStyle.html' : 'reStyle');
 

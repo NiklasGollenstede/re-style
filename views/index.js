@@ -44,6 +44,13 @@ return new Home({
 			position: 'relative', fontSize: '150%', top: '-5px',
 		}, }, [ '🛈', ]),
 	}, {
+		id: 'restarted',
+		title: 'Restarted',
+		icon: createElement('div', { style: {
+			position: 'relative', fontSize: '150%', top: '-5px',
+		}, }, [ '↻', ]),
+		hidden: true,
+	}, {
 		id: '404',
 		title: 'Error',
 		icon: createElement('div', { style: {

@@ -42,6 +42,7 @@ The add-on contains instructions on how to do that easily.
 - "Exchange messages with programs other than Firefox": Use NativeExt if installed. Useless otherwise.
 - "Display notifications to you": Success messages after user actions, error messages. <!-- Optional for --> Status changes.
 - "Access recently closed tabs": Under some rare conditions, reStyle needs to open temporary popups. This is used to remove them from the history after they are closed.
+<!-- - "bookmarks": create a bookmark to <code>about:restartrequired</code> if requested. -->
 
 
 <b>Implementation status</b>

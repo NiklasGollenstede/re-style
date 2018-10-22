@@ -9,24 +9,32 @@ let debug; options.debug.whenChange(([ value, ]) => { debug = value; });
  * Represents (the parts of) a style sheet that can be attached via `Tabs.insertCSS`.
  */
 class ContentStyle {
+	/**
+	 * @param  {string}  url    Style source URL (currently only used for debugging).
+	 * @param  {Sheet}   sheet  Sheet to apply. Will be stringified and not saved.
+	 */
 	constructor(url, sheet) {
-		this.url = url;
-		// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'` (see https://bugzilla.mozilla.org/show_bug.cgi?id=1035091)
-		// so, as with `ChromeStyle`s, '!important' has to be added to every rule
-		this.code = sheet.toString({ minify: false, important: true, namespace: true, })
-		+ `\n/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
-		styles.add(this); styles.size === 1 && WebNavigation.onCommitted.addListener(onNavigation);
+		this.url = url; this.code = stringify(sheet);
+		styles.add(this);
 		toAdd.add(this.code); refresh();
+	}
+
+	/**
+	 * @param  {Sheet}   sheet  Sheet to apply (instead of the previous one). Will be stringified and not saved.
+	 */
+	update(sheet) {
+		testAlive(this); const old = this.code; this.code = stringify(sheet);
+		if (this.code !== old) { toRemove.add(old); toAdd.add(this.code); refresh(); }
 	}
 
 	destroy() {
 		if (!styles.has(this)) { return; }
-		styles.delete(this); styles.size === 0 && WebNavigation.onCommitted.removeListener(onNavigation);
+		styles.delete(this);
 		toRemove.add(this.code); refresh();
 		this.code = this.url = null;
 	}
 
-	toJSON() { return { url: this.url, code: this.code, }; }
+	toJSON() { testAlive(this); return { url: this.url, code: this.code, }; }
 
 	static fromJSON({ url, code, }) {
 		return new ContentStyle(url, code);
@@ -34,6 +42,16 @@ class ContentStyle {
 }
 
 //// start implementation
+
+function testAlive(self) { if (!styles.has(self)) { throw new TypeError(`ContentStyle method called on destroyed or invalid object`); } }
+
+function stringify(sheet) {
+	// in firefox 59, `@-moz-document` broke for styles not attached with `cssOrigin: 'user'` (see https://bugzilla.mozilla.org/show_bug.cgi?id=1035091)
+	// so, as with `ChromeStyle`s, '!important' has to be added to every rule
+	return sheet.toString({ minify: false, important: true, namespace: true, })
+	+ `\n/* ${ Math.random().toString(32).slice(2) } */`; // avoid conflicts
+}
+
 
 /**
  * TODO:
@@ -58,6 +76,20 @@ class ContentStyle {
 // TODO: handle pages that re-appear from the BF-cache
 
 const toAdd = new Set, toRemove = new Set, styles = new Set;
+
+// only listen while styles.size > 0
+styles.add = function(item) {
+	const was = this.size; Set.prototype.add.call(this, item);
+	if (this.size === was || this.size !== 1) { return; }
+	WebNavigation.onCommitted.addListener(onCommitted);
+	WebNavigation.onDOMContentLoaded.addListener(onDOMContentLoaded);
+};
+styles.delete = function(item) {
+	const was = this.size; Set.prototype.delete.call(this, item);
+	if (this.size === was || this.size !== 0) { return; }
+	WebNavigation.onCommitted.removeListener(onCommitted);
+	WebNavigation.onDOMContentLoaded.removeListener(onDOMContentLoaded);
+};
 
 async function refresh() {
 	const frames = (await (pending = getFrames())); // if the tabs are already being queried, this returns that promise
@@ -90,13 +122,27 @@ let pending = null; async function getFrames() {
 	return frames;
 }
 
-// only listens while styles.size > 0
-function onNavigation({ tabId, frameId, url, }) {
-	url.startsWith('wyciwyg://') && (url = url.replace(/^wyciwyg:\/\/(?:\d+\/)?/, '')); // cached (subframe?) in Firefox, most likely a bug
-	isScripable(url) && styles.forEach(({ code, }) =>
+function onCommitted({ tabId, frameId, url, }) {
+	// if (transitionQualifiers.includes('forward_back')) { } // TODO: there is a chance that the page comes from the FB-cache, but how can that be detected?
+
+	// For subframes this fires too early, before the new frame can be targeted. The style would be inserted in the old frame.
+	frameId === 0 && isScripable(url) && styles.forEach(({ code, }) =>
 		Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', cssOrigin: 'user', })
 	);
 }
+function onDOMContentLoaded({ tabId, frameId, url, }) {
+	// this fires late, but it is better than inserting in the old frame
+	frameId !== 0 && isScripable(url) && styles.forEach(({ code, }) =>
+		Tabs.insertCSS(tabId, { frameId, code, runAt: 'document_start', cssOrigin: 'user', })
+	);
+}
+
+function patchEvent(listener) { return function(event) {
+	event.url.startsWith('wyciwyg://') && (event.url = event.url.replace(/^wyciwyg:\/\/(?:\d+\/)?/, '')); // cached (subframe?) in Firefox, most likely a bug
+	return listener(event);
+}; }
+onCommitted = patchEvent(onCommitted); // eslint-disable-line no-func-assign
+onDOMContentLoaded = patchEvent(onDOMContentLoaded); // eslint-disable-line no-func-assign
 
 function isScripable(url) {
 	return !( // not accessible if:

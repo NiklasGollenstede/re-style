@@ -37,7 +37,7 @@ class Style {
 	 * Forcefully re-applies the current Sheet,
 	 * e.g. to replace old cached `.chrome` and `.web` properties.
 	 */
-	reload() { const self = Self.get(this); !self.disabled && self.update(); }
+	reload() { const self = Self.get(this); !self.disabled && self.apply(); }
 
 	/// The `url` constructor parameter.
 	get url() { return Self.get(this).url; }
@@ -190,11 +190,11 @@ class _Style {
 		if (code === this.code) { return false; }
 		this.code = code; this._sheet = null;
 
-		this.update(); return true;
+		this.apply(); return true;
 	}
 
 	/// applies the `._sheet?` to the UI and browser
-	update() {
+	apply() {
 		if (this.disabled) { this.parseIncludes(); this._fireChanged(); return; }
 		const sheet = this._sheet = this._sheet || Meta.normalize(Sheet.fromCode(this.code), this.url);
 		this.updateName(); this.meta = deepFreeze(sheet.meta);
@@ -231,7 +231,7 @@ class _Style {
 	/// refreshes `._chrome`, `._content` and `._web` from `._sheet?`
 	parseSections() {
 		const { sections, namespace, } = this._sheet = this._sheet || Meta.normalize(Sheet.fromCode(this.code), this.url);
-		const userChrome = this._chrome = [ ]; const userContent = this._content = [ ]; const webContent = this._web = [ ];
+		const userChrome = [ ], userContent = [ ], webContent = [ ];
 		sections.forEach(section => {
 			const { urls, urlPrefixes, domains, regexps, } = section;
 
@@ -272,6 +272,9 @@ class _Style {
 			content.urls.length + content.urlPrefixes.length + content.domains.length + content.regexps.length > 0 && userContent.push(content);
 			web.urls.length     + web.urlPrefixes.length     + web.domains.length     + web.regexps.length     > 0 && webContent.push(web);
 		});
+		this._chrome = this._sheet.cloneWithSections(userChrome);
+		this._content = this._sheet.cloneWithSections(userContent);
+		this._web = this._sheet.cloneWithSections(webContent);
 	}
 
 	/// (re-)builds `.options.children[includes|options].children` settings branches from `this.meta`
@@ -286,10 +289,10 @@ class _Style {
 					checks: { balancedBrackets: Sheet.checkBalancedBrackets, },
 				});
 				const option = root.children[0]; parent.set(option, root);
-				option.onChange(() => {
+				option.onChange((_, __, option) => {
 					this.disabled = false;
 					!this._sheet && this.parseSections(); // restored from JSON
-					this[onChange](); this.applyStyle();
+					this[onChange](option); this.applyStyle();
 				});
 				return root.children[0];
 			}))
@@ -302,13 +305,13 @@ class _Style {
 		return { dynamicIncludes, dynamicOptions, };
 	}
 
-	/// applies the `.options.children.include.children` settings branch to `._sheet.sections` and `._web`
+	/// applies the `.options.children.include.children` settings branch to `._sheet.sections`, `._content` and `._web`
 	applyIncludes() {
 		const { _sheet: { sections, }, _web: webContent, _content: userContent, } = this;
 		const dynamicIncludes = this.options.children.include.children;
 		sections.forEach(section => Object.entries({
 			web: webContent, content: userContent,
-		}).forEach(([ type, targets, ]) => {
+		}).forEach(([ type, { sections: targets, }, ]) => {
 			const target = targets.find(_=>_.tokens === section.tokens) || section.cloneWithoutIncludes();
 			const hadDynamic = target.dynamic.splice(0, Infinity).length;
 			section.regexps.forEach(({ value: source, as, }) => {
@@ -328,34 +331,32 @@ class _Style {
 	}
 
 	/// applies the `.options.children.options.children` settings branch to `._sheet.sections`
-	applyOptions() {
-		const { _sheet: { sections, }, } = this;
-		const dynamicOptions = this.options.children.options.children;
+	applyOptions(changedOption) {
+		const { _sheet: sheet, } = this;
+		const dynamicOptions = changedOption ? [ changedOption, ] : this.options.children.options.children;
 		const prefs = { }; dynamicOptions.forEach(
 			({ name, value, model: { unit, }, }) => (prefs[name] = value + (unit || ''))
-		);
-		sections.forEach(_=>_.setOptions(prefs));
+		); sheet.swapOptions(null, prefs);
 	}
 
-	/// applies `._sheet`, `._chrome`, `._content` and `._web` to the UI and browser
+	/// (re-)applies `._chrome`, `._content` and `._web` to the UI and browser
 	applyStyle() {
-		const { _sheet: sheet, _chrome: userChrome, _content: userContent, _web: webContent, } = this;
-		const chrome = !userChrome.length && !userContent.length ? null
-		: new ChromeStyle(this.url,
-			userChrome.length  ? sheet.cloneWithSections(userChrome)  : null,
-			userContent.length ? sheet.cloneWithSections(userContent) : null,
-		); this.chrome && this.chrome.destroy(); this.chrome = chrome;
-
-		const web = !webContent.length ? null
-		: new WebStyle(this.url, sheet.cloneWithSections(webContent));
-		this.web && this.web.destroy(); this.web = web;
+		const { _chrome: userChrome, _content: userContent, _web: webContent, } = this;
+		[
+			[ 'chrome', ChromeStyle, userChrome.sections.length || userContent.sections.length ? [ userChrome, userContent, ] : null, ],
+			[ 'web', WebStyle, webContent.sections.length ? [ webContent, ] : null, ],
+		].forEach(([ key, Type, args, ]) => {
+			if (this[key] && args) { this[key].update(...args); }
+			else if (args) { this[key] = new Type(this.url, ...args); }
+			else if (this[key]) { this[key].destroy(); }
+		});
 
 		this._fireChanged();
 	}
 
 	enable() {
 		if (this.disabled === false) { return; } this.disabled = false;
-		this.update();
+		this.apply();
 	}
 	disable(supress) {
 		if (this.disabled === true) { return; } this.disabled = true;

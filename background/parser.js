@@ -24,6 +24,8 @@ class Sheet {
 	 */
 	static fromCode(code, options) { return Sheet_fromCode(code, options); }
 
+//	static extractMeta(code, options) { return Sheet_extractMeta(code, options); }
+
 	/**
 	 * Transforms `userstyles.org`s JSON sheets into plain CSS code. Normalizes newlines.
 	 * @param  {string}  json  JSON response from `userstyles.orgs` API.
@@ -79,26 +81,35 @@ class Sheet {
  * Parsed `@document` block within a `Sheet`. Exported as `Sheet.Section`.
  * All include rules are set as interpreted strings, e.g.
  * a literal `@regexp("a\\b\/c\.d")` would result in a `a\b/c.d` entry in `.regexp`.
+ * Except for `dynamic` all properties should be treated as recursively read-only.
  * @property {[{value,as,}]}   urls         `url()` document include rules.
  * @property {[{value,as,}]}   urlPrefixes  `url-prefixe()` document include rules.
  * @property {[{value,as,}]}   domains      `domain()` document include rules.
  * @property {[{value,as,}]}   regexps      `regexp()` document include rules.
- * @property {[{value,as,}]}   dynamic      Dynamically configurable document include rules, like regexps.
- * @property {[int,int]?}      location     For `Section`s directly parsed by `Section.fromCode` this
- *                                          is their location within the original source code string.
+ * @property {[string]}        tokens       Array of code tokens. For non-global sections everything between the curly brackets,
+ *                                          for global sections everything between the closing bracket and the `@` of the next block.
+ * @property {[{value,as,}]}   dynamic      Dynamically configurable document include rules, like `regexps`.
+ * @property {[int,int]?}      location     For `Section`s directly parsed by `Section.fromCode` this is the string index
+ *                                          of the first and past the last char of `.tokens` in the original source.
+ * @property {boolean}         global       Whether this is a section of global rules outside a `@document` block.
  */
 class Section {
 
 	/// Constructs a `Sheet` from its components.
-	constructor(urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ], tokens = [ ], location = null, dynamic = [ ]) {
+	constructor(urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ], tokens = [ ], location = null, dynamic = [ ], global = false, _empty = undefined) {
 		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
-		this.tokens = tokens; this.location = location; this.dynamic = dynamic;
+		this.tokens = tokens; this.location = location; this.dynamic = dynamic; this.global = global; this._empty = _empty;
 	}
 
-	cloneWithoutIncludes() { return new Section([ ], [ ], [ ], [ ], this.tokens, this.location, [ ]); }
+	cloneWithoutIncludes() { const self = Section.fromJSON(this); {
+		self.urls = [ ]; self.urlPrefixes = [ ]; self.domains = [ ]; self.regexps = [ ]; self.dynamic = [ ];
+	} return self; }
 
 	/// Returns `true` iff the `Section`s code consists of only comments and whitespaces.
-	isEmpty() { return !this.tokens.some(_=>!(/^\s*$|^\/\*/).test(_)); }
+	isEmpty() {
+		if (this._empty !== undefined) { return this._empty; }
+		return (this._empty = !this.tokens.some(_=>!(/^\s*$|^\/\*(?!!?\[\[)/).test(_)));
+	}
 
 	/// Copies the current values of all options occurring in this `Section`s `.tokens` to `get`
 	/// and replaces them by the values in `set`. Works with { [name]: value, } objects.
@@ -125,8 +136,8 @@ class Section {
 
 	toJSON() { return Object.assign({ }, this); }
 
-	static fromJSON({ urls, urlPrefixes, domains, regexps, tokens, dynamic, }) {
-		return new Section(urls, urlPrefixes, domains, regexps, tokens, dynamic);
+	static fromJSON({ urls, urlPrefixes, domains, regexps, tokens, dynamic, global, _empty, }) {
+		return new Section(urls, urlPrefixes, domains, regexps, tokens, dynamic, global, _empty);
 	}
 }
 Sheet.Section = Section;
@@ -209,7 +220,7 @@ function Sheet_fromCode(css, { onerror, } = { }) {
 				case 'description': value = value.replace(/^\s*\n/, ' |\n'); break;
 				case 'var': case 'advanced': (meta.vars || (meta.vars = [ ])).push(tokenize(value)); continue;
 			}
-			if (!parse(key +':'+ value) && !meta.hasOwnProperty(key)) { meta[key] = value.trim(); }
+			if (!parse(key +':'+ value) && !Object.hasOwnProperty.call(meta, key)) { meta[key] = value.trim(); }
 		}
 		function parse(string) { try { Object.assign(meta, YAML.parse(string)); return true; } catch (error) { onerror(error); return false; } }
 	} else {
@@ -223,6 +234,10 @@ function Sheet_fromCode(css, { onerror, } = { }) {
 
 	return self;
 }
+
+// function Sheet_extractMeta(css, { onerror, } = { }) {
+// ...
+// }
 
 const rsFuzzyTitle = [
 	RegExpX('mi')`^  # in any line
@@ -300,7 +315,8 @@ function Section_swapOptions(get, set) {
 			if (set && (name in set)) {
 				const now = tokenize(set[name]);
 				const old = tokens.splice(start + 1, i - start - 1, ...now);
-				i += now.length - old.length;
+				const diff = now.length - old.length;
+				i += diff; l += diff;
 			}
 			start = -1; name = null;
 		} else { const name = match[2]; if (set && (name in set)) {

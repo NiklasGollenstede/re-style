@@ -108,7 +108,7 @@ async function readAndWatch(include, dir, onChange, create) {
 		const path = Path.join(dir, name);
 		if (!name || (/^\.|\/\./).test(name) || !include.test(path)) { return; }
 		let stat; try { stat = (await get(FS.stat, path)); } catch (_) { }
-		if (!stat) { return void onChange(path, null); } // deleted
+		if (!stat) { onChange(path, null); return; } // deleted
 		const file = (await get(FS.readFile, path, 'utf8'));
 		if (file === data[path]) { return /*void console.log('no change', name)*/; } // ???
 		onChange(path, (data[path] = file));

@@ -16,7 +16,7 @@ function showInfo() {
 	document.title = url +' – '+ manifest.short_name;
 
 	let style; for (const { 1: it, } of Style) {
-		if (it.url === url) { style = it; break; }
+		if (it.url === url) { style = window.style = it; break; }
 	} if (!style) {
 		document.body.innerHTML = `<h1>No Style with URL <i id=url></i> installed</h1>`;
 		document.getElementById('url').textContent = url; return;
@@ -24,7 +24,8 @@ function showInfo() {
 	style.onChanged(showInfo, { owner: window, });
 
 	document.body.innerHTML = `
-		<h2><span id=title></span><small> (<span id=id></span>)</small></h2> <p>Fully processed style as currently applied:</p>
+		<h2><span id=title></span><small> (<span id=id></span>)</small></h2>
+		<p>The Style object can be inspected as <code>window.style</code>.<br>Fully processed style as currently applied:</p>
 		<h3>Parsing errors <button id=reload>Re-parse</button></h3> <pre><code id=errors></pre></code>
 		<h3>Metadata</h3> <pre><code id=meta></pre></code>
 		<h3>Webpage</h3> <pre><code id=web></pre></code>

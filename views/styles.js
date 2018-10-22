@@ -52,7 +52,7 @@ for (const [ name, { Type, title, before, empty, after, }, ] of Object.entries(S
 
 Style.onChanged(id => {
 	const style = Style.get(id), element = document.getElementById(id);
-	if (!style) { return void (element && element.remove()); }
+	if (!style) { element && element.remove(); return; }
 	// console.log('onChanged', id, style, element);
 	if (!element) {
 		const list = document.querySelector('#'+ (style instanceof RemoteStyle ? 'remote' : 'local') +'>div');

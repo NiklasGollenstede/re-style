@@ -56,8 +56,12 @@ const model = {
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
 		children: {
+			notifyChange: {
+				default: true,
+				input: { type: 'boolean', suffix: 'show notifications about required restarts.', },
+			},
 			clearChrome: {
-				default: true, description: ' ',
+				default: true,
 				input: [ { type: 'control', label: `Delete`, suffix: `all content from the <code>userChrome.css</code> and <code>userContent.css</code> files, except for reStyles section.`, }, ],
 			},
 		},
@@ -66,8 +70,7 @@ const model = {
 		title: 'Development Mode',
 		// expanded: false,
 		description: `You can load local files as user styles.
-		Styles matching normal web pages should be re-applied immediately when the files are saved.<br>
-		To apply changes to any of the values below, dis- then enable this option`,
+		Styles matching normal web pages should be re-applied immediately when the files are saved.`,
 		default: false,
 		restrict: { type: 'boolean', },
 		input: { type: 'boolean', suffix: `enable`, },
@@ -81,7 +84,8 @@ const model = {
 			},
 			exclude: {
 				title: 'Exclude files',
-				description: `A case-insensitive RegExp matching parts of names of <code>.css</code> files to ignore.`,
+				description: `A case-insensitive RegExp matching parts of names of <code>.css</code> files to ignore.<br>
+				To apply changes, re-enable Development Mode.`,
 				default: [ 'thunderbird', ],
 				restrict: { type: 'string', },
 				input: { type: 'string', },

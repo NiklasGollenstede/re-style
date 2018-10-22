@@ -34,15 +34,19 @@
 		"yamljs": "0.3.0"
 	},
 	"devDependencies": {
-		"babel-eslint": "8.2.2",
-		"eslint": "4.19.1",
-		"eslintrc": "NiklasGollenstede/eslintrc#3872881"
+		"eslintrc": "github:NiklasGollenstede/eslintrc#5837452",
+		"ghooks": "^2.0.4"
 	},
 	"scripts": {
 		"postinstall": "npm start",
 		"start": "web-ext-build",
-		"lint": "eslint --ignore-path .gitignore .",
+		"lint": "eslintrc --ignore-path .gitignore .",
 		"sign": "web-ext-build {beta:$APPVEYOR_BUILD_NUMBER,sign:1}"
+	},
+	"config": {
+		"ghooks": {
+			"pre-commit": "npm run lint --silent -- --color"
+		}
 	},
 	"eslintConfig": {
 		"extends": "./node_modules/eslintrc/web-ext.js"
