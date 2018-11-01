@@ -99,6 +99,7 @@ setEventGetter(Style, 'changed', Self, { async: true, });
 
 //// start implementation
 
+const RegExpXu = RegExpX({ unicode: true, noCapture: true, });
 const disclaimer = `<i>All text you see in the box below is supplied by the style author, not by the ${manifest.short_name} extension.</i>`;
 
 const sXulNs = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
@@ -113,15 +114,18 @@ const chromeUrlPrefixes = [
 
 const contentDomains = options.internal.children.restrictedDomains.value.split(',');
 const contentUrlPrefixes = [
+	'chrome://', // lots of dialogs are displayed in content pages
 	'about:',
 	'blob:', 'data:', // pretty sure data: doesn't work in a WebStyle, and even if blob:https?:// does, others shouldn't
 	'view-source:',
 	'resource://',
 	'moz-extension://',
 	...contentDomains.map(_=>`https://${_}/`),
-], rContentDomains = RegExpX`^ ${contentDomains} $`;
+], rContentDomains = RegExpXu`^ ${contentDomains} $`;
 
-const RegExpXu = RegExpX({ unicode: true, noCapture: true, });
+const rWebUrls = RegExpXu`^ file:/// | ftp:// | ^ https:// (?!${contentDomains}/) `;
+const rWebUrlPrefixes = RegExpXu`^f(i(l(e(:(//?)?)?)?)?|t(p(:(//?)?)?)?)?$|^h(t(t(ps?(:(//?)?)?)?)?)?$`; // 'file://', 'ftp://' or 'https?://' or any prefix thereof
+
 const toRegExp = {
 	urls(raws) { return RegExpXu`^ ${raws} $`; },
 	urlPrefixes(raws) { return RegExpXu`^ ${raws} .*$`; },
@@ -235,8 +239,8 @@ class _Style {
 		sections.forEach(section => {
 			const { urls, urlPrefixes, domains, regexps, } = section;
 
-			if (urls.length + urlPrefixes.length + domains.length + regexps.length === 0) {
-				if (section.isEmpty()) { return; } // TODO: this removes "global" comments
+			if (section.global) {
+				if (section.isEmpty()) { return; } // TODO: this removes "global" comments (could maybe prepend them to the next section)
 				if (rXulNs.test(namespace.replace(/\\(?!\\)/g, ''))) { userChrome.push(section); userContent.push(section); }
 				else { webContent.push(section); } return;
 			}
@@ -244,19 +248,24 @@ class _Style {
 			const chrome_ = section.cloneWithoutIncludes(), content = section.cloneWithoutIncludes(), web = section.cloneWithoutIncludes();
 			const targets = { chrome: chrome_, content, web, };
 
-			domains.forEach(({ value, as, }) => targets[as || (
-				rContentDomains.test(value) ? 'content' : 'web'
-			)].domains.push({ value, as, }));
+			domains.forEach(({ value, as, }) => {
+				if (as) { targets[as].domains.push({ value, as, }); return; }
+				targets[rContentDomains.test(value) ? 'content' : 'web'].domains.push({ value, as, }); // there are no chrome domains
+			});
 
-			urls.forEach(({ value, as, }) => targets[as || (
-				  chromeUrlPrefixes .some(prefix => value.startsWith(prefix)) ? 'chrome'
-				: contentUrlPrefixes.some(prefix => value.startsWith(prefix)) ? 'content' : 'web'
-			)].urls.push({ value, as, }));
+			urls.forEach(({ value, as, }) => {
+				if (as) { targets[as].urls.push({ value, as, }); return; }
+				chromeUrlPrefixes .some(prefix => value.startsWith(prefix)) && targets.chrome .urls.push({ value, as, });
+				contentUrlPrefixes.some(prefix => value.startsWith(prefix)) && targets.content.urls.push({ value, as, });
+				rWebUrls.test(value) && targets.web.urls.push({ value, as, });
+			});
 
-			urlPrefixes.forEach(({ value, as, }) => targets[as || (
-				  chromeUrlPrefixes .some(prefix => value.startsWith(prefix) || prefix.startsWith(value)) ? 'chrome'
-				: contentUrlPrefixes.some(prefix => value.startsWith(prefix) || prefix.startsWith(value)) ? 'content' : 'web'
-			)].urlPrefixes.push({ value, as, }));
+			urlPrefixes.forEach(({ value, as, }) => {
+				if (as) { targets[as].urlPrefixes.push({ value, as, }); return; }
+				chromeUrlPrefixes .some(prefix => value.startsWith(prefix) || prefix.startsWith(value)) && targets.chrome .urlPrefixes.push({ value, as, });
+				contentUrlPrefixes.some(prefix => value.startsWith(prefix) || prefix.startsWith(value)) && targets.content.urlPrefixes.push({ value, as, });
+				(rWebUrls.test(value) || rWebUrlPrefixes.test(value)) && targets.web.urlPrefixes.push({ value, as, });
+			});
 
 			// this is not going to be accurate (and therefore not exclusive)
 			regexps.forEach(({ value, as, }) => {

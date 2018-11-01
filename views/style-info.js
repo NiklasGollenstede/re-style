@@ -1,5 +1,6 @@
 (function(global) { 'use strict'; define(({ // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 	'node_modules/web-ext-utils/browser/': { manifest, },
+	'node_modules/web-ext-utils/utils/notify': notify,
 	'background/style': Style,
 }) => async (window, location) => { const { document, } = window;
 
@@ -24,7 +25,7 @@ function showInfo() {
 	style.onChanged(showInfo, { owner: window, });
 
 	document.body.innerHTML = `
-		<h2><span id=title></span><small> (<span id=id></span>)</small></h2>
+		<h2><a id=title title=open target=_blank></a><small> (<span id=id></span>)</small></h2>
 		<p>The Style object can be inspected as <code>window.style</code>.<br>Fully processed style as currently applied:</p>
 		<h3>Parsing errors <button id=reload>Re-parse</button></h3> <pre><code id=errors></pre></code>
 		<h3>Metadata</h3> <pre><code id=meta></pre></code>
@@ -34,6 +35,8 @@ function showInfo() {
 	`;
 
 	document.getElementById('reload').onclick = _=>!_.button && style.reload();
+	document.getElementById('title').href = style.url;
+	style.show && (document.getElementById('title').onclick = _=>!_.button && style.show().catch(notify.error) && _.preventDefault());
 
 	Object.entries({
 		title: style.url, id: style.id,
@@ -45,7 +48,6 @@ function showInfo() {
 	}).forEach(([ id, text, ]) => {
 		document.getElementById(id).textContent = text;
 	});
-
 }
 
 }); })(this);

@@ -169,7 +169,7 @@ async function onChromeChange(path, css) { try {
 	(await Promise.all(Object.entries(ChromeStyle.parseFiles(css)).map(async ([ path, css, ]) => {
 		if ((/^https?:\/\//).test(path)) { return; } // skip remote styles
 		const id = (await Style.url2id(path));
-		const style = styles.get(id), old = style && style.chrome.sheets[type];
+		const style = styles.get(id), old = style && style.chrome && style.chrome.sheets[type];
 		if (!old) { console.error(`Unexpected chrome style section ${path}`); return; }
 		if (style.chrome[type] === css) { return; } // the segment of the style actually changed
 		const oldSections = old.sections.slice();
@@ -188,7 +188,8 @@ async function onChromeChange(path, css) { try {
 			if (!oldSection) { console.error(`can't find old section for`, { code: section.tokens.join(''), }); return; }
 			oldSections.splice(oldSections.indexOf(oldSection), 1); // only use each old section once
 			if (sameArray(oldSection.tokens, section.tokens)) { continue; } // section wasn't changed
-			if (!oldSection.location) { console.warn(`can't apply changes to global CSS`); continue; }
+			if (oldSection.global) { console.warn(`can't apply changes to global CSS`); continue; }
+			if (!oldSection.location || !(+oldSection.location[0] >= 0) || !(+oldSection.location[1] >= 0)) { console.warn(`Section location information missing ...`); continue; }
 
 			// "un-apply" any user-overwritten options
 			const newSetction = section.cloneWithoutIncludes();

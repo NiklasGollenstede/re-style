@@ -8,7 +8,7 @@ document.body.innerHTML = `
 		p { margin: .4em -.5em .2em; padding: .1em .5em 0.3em; }
 	</style>
 	<h1>Firefox restarted</h1>
-	<p>Thanks for restarting your browser. Your new UI Styles should now be in affect.</p>
+	<p>Thanks for restarting your browser. Your new UI Styles should now be in effect.</p>
 `;
 
 }); })(this);

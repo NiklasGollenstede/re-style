@@ -19,12 +19,14 @@ class ChromeStyle {
 	constructor(path, chrome, content) {
 		styles.add(this);
 		this.path = path;
+		this.sheets = { chrome, content, };
 		this.chrome  = stringify(chrome);
 		this.content = stringify(content);
 		applyStyles();
 	}
 
 	update(chrome, content) {
+		this.sheets.chrome = chrome; this.sheets.content = content;
 		chrome = stringify(chrome); content = stringify(content);
 		if (this.chrome === chrome && this.content === content) { return; }
 		this.chrome = chrome; this.content = content; applyStyles();

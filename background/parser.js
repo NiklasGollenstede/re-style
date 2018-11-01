@@ -65,7 +65,7 @@ class Sheet {
 	/// and replaces them by the values in `set`. Works with { [name]: value, } objects.
 	/// If either object is not provided, the read and/or set is skipped. Returns `get`.
 	/// Only writes values to `get` that are not defined yet, i.e. always reads the first occurrence of any option.
-	swapOptions(get, set) { this.sections.forEach(_=>_.swapOptions(get, set)); return get; } // TODO: skip global section
+	swapOptions(get, set) { this.sections.forEach(sec => !sec.global && sec.swapOptions(get, set)); return get; } // global section are explicitly not supported
 
 	/// Gets the currently set / default options as a { [name]: value, } object.
 	getOptions() { return this.swapOptions({ }, null); }
@@ -97,6 +97,7 @@ class Section {
 
 	/// Constructs a `Sheet` from its components.
 	constructor(urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ], tokens = [ ], location = null, dynamic = [ ], global = false, _empty = undefined) {
+		if (location && !location.length) { debugger; }
 		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
 		this.tokens = tokens; this.location = location; this.dynamic = dynamic; this.global = global; this._empty = _empty;
 	}
@@ -108,7 +109,11 @@ class Section {
 	/// Returns `true` iff the `Section`s code consists of only comments and whitespaces.
 	isEmpty() {
 		if (this._empty !== undefined) { return this._empty; }
-		return (this._empty = !this.tokens.some(_=>!(/^\s*$|^\/\*(?!!?\[\[)/).test(_)));
+		let inNS = false; return (this._empty = this.tokens.every(token => {
+			if (token === ';') { if (inNS) { inNS = false; return true; } return false; }
+			if (inNS) { return true; } if (token === '@namespace') { inNS = true; return true; }
+			return (/^\s*$|^\/\*(?!!?\[\[)/).test(token);
+		}));
 	}
 
 	/// Copies the current values of all options occurring in this `Section`s `.tokens` to `get`
@@ -136,8 +141,8 @@ class Section {
 
 	toJSON() { return Object.assign({ }, this); }
 
-	static fromJSON({ urls, urlPrefixes, domains, regexps, tokens, dynamic, global, _empty, }) {
-		return new Section(urls, urlPrefixes, domains, regexps, tokens, dynamic, global, _empty);
+	static fromJSON({ urls, urlPrefixes, domains, regexps, tokens, location, dynamic, global, _empty, }) {
+		return new Section(urls, urlPrefixes, domains, regexps, tokens, location, dynamic, global, _empty);
 	}
 }
 Sheet.Section = Section;
@@ -151,7 +156,7 @@ function Sheet_fromCode(css, { onerror, } = { }) {
 		while (lastIndex < index) { lastLoc += tokens[lastIndex++].length; } return lastLoc;
 	}
 
-	const globalTokens = [ ], sections = [ new Section([ ], [ ], [ ], [ ], globalTokens), ];
+	const globalTokens = [ ], sections = [ new Section([ ], [ ], [ ], [ ], globalTokens, null, [ ], true), ];
 	const meta = { }, self = new Sheet(meta, sections, '');
 	typeof onerror !== 'function' && (onerror = error => {
 		self.errors.push(typeof error === 'string' ? error : error && error.message);
@@ -271,23 +276,23 @@ function json2css(json) {
 		urls = urls.map(toObj); urlPrefixes = urlPrefixes.map(toObj);
 		domains = domains.map(toObj); regexps = regexps.map(toObj);
 
-		return Section_toString.call({ urls, urlPrefixes, domains, regexps, tokens: [ code.replace(/\r\n?/g, '\n'), ], location: null, dynamic: [ ], });
+		return Section_toString.call({ urls, urlPrefixes, domains, regexps, tokens: [ code.replace(/\r\n?/g, '\n'), ], dynamic: [ ], });
 	}).join('\n\n');
 }
 
 function Section_toString({ minify = false, important = false, } = { }) {
-	let { tokens, } = this;
+	let { urls, urlPrefixes, domains, regexps, tokens, dynamic, } = this;
 	important && (tokens = addImportants(tokens));
 	minify && (tokens = minifyTokens(tokens));
 
-	if (this.urls.length + this.urlPrefixes.length + this.domains.length + this.regexps.length + this.dynamic.length === 0) { return tokens.join(''); }
+	if (urls.length + urlPrefixes.length + domains.length + regexps.length + dynamic.length === 0) { return tokens.join(''); }
 
 	return '@-moz-document'+ (minify ? ' ' : '\n\t') + [
-		...this.urls.map(({ value, }) => `url(${ JSON.stringify(value) })`),
-		...this.urlPrefixes.map(({ value, }) => `url-prefix(${ JSON.stringify(value) })`),
-		...this.domains.map(({ value, }) => `domain(${ JSON.stringify(value) })`),
-		...this.regexps.map(({ value, }) => `regexp(${ JSON.stringify(value) })`),
-		...this.dynamic.map(({ value, }) => `regexp(${ JSON.stringify(value) })`),
+		...urls.map(({ value, }) => `url(${ JSON.stringify(value) })`),
+		...urlPrefixes.map(({ value, }) => `url-prefix(${ JSON.stringify(value) })`),
+		...domains.map(({ value, }) => `domain(${ JSON.stringify(value) })`),
+		...regexps.map(({ value, }) => `regexp(${ JSON.stringify(value) })`),
+		...dynamic.map(({ value, }) => `regexp(${ JSON.stringify(value) })`),
 	].join(minify ? ',' : ',\n\t')
 	+ (minify ? '' : '\n') +'{'+ tokens.join('') +'}';
 }
