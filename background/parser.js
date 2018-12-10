@@ -97,7 +97,6 @@ class Section {
 
 	/// Constructs a `Sheet` from its components.
 	constructor(urls = [ ], urlPrefixes = [ ], domains = [ ], regexps = [ ], tokens = [ ], location = null, dynamic = [ ], global = false, _empty = undefined) {
-		if (location && !location.length) { debugger; }
 		this.urls = urls; this.urlPrefixes = urlPrefixes; this.domains = domains; this.regexps = regexps;
 		this.tokens = tokens; this.location = location; this.dynamic = dynamic; this.global = global; this._empty = _empty;
 	}
@@ -117,8 +116,8 @@ class Section {
 	}
 
 	/// Copies the current values of all options occurring in this `Section`s `.tokens` to `get`
-	/// and replaces them by the values in `set`. Works with { [name]: value, } objects.
-	/// If either object is not provided, the read and/or set is skipped. Returns `get`.
+	/// and replaces them by the values in `set`. Works with `{ [name]: value, }` objects.
+	/// If either object is not provided, the get and/or set is skipped. Returns `get`.
 	/// Only writes values to `get` that are not defined yet, i.e. always reads the first occurrence of any option.
 	swapOptions(get, set) { return Section_swapOptions.call(this, get, set); }
 
@@ -215,7 +214,8 @@ function Sheet_fromCode(css, { onerror, } = { }) {
 		const tokens = metaBlock
 		.replace(/^.*\n/, '') // first line, which is known to contain the ==UserStyle== sequence
 		.replace(/\s*(==+\/?[Uu]ser-?[Ss]tyle==+\s*)?\*\/$/, '') // optional closing ==/UserStyle==, whitespaces and comment end
-		.replace(/^ ?\* ?/gm, '') // ' * ' sequences at line start, both spaces optional
+		.replace(/^ ?\* ?/gm, '') // ' * ' star frame at line start, both spaces optional
+		.replace(/\*(\\*)\\\//g, '*$1/') // unescape escaped CSS comment closing sequence
 		.split(/^@([\w-]+)(?= |$)/gm);
 
 		parse(tokens[0]); // well formed YAML
@@ -297,22 +297,17 @@ function Section_toString({ minify = false, important = false, } = { }) {
 	+ (minify ? '' : '\n') +'{'+ tokens.join('') +'}';
 }
 
-const rOptionTag = RegExpX`^
-	\/\*!?\[\[            # /*[[ or /*![[
-		([\!\/])?         # ! for opening, / for closing
-		([a-zA-Z][\w-]+)  # name
-	\]\]\*\/              # ]]*/
-$`;
 function Section_swapOptions(get, set) {
 	// format (get|set): /*[[!<name>]]*/<value>/*[[/<name>]]*/
 	// format (set): /*[[<name>]]*/
+	// TODO: remove any closing tags before substituting
 	const { tokens, } = this;
-	let start = -1, name = null;
+	let start = -1, name = null; // (only) used to match pairs
 	for (let i = 0, l = tokens.length, token = tokens[i]; i < l; token = tokens[++i]) {
 		const match = rOptionTag.exec(token); if (!match) { continue; }
-		if (match[1] === '!') {
+		if (match[1] === '!') { // opening tag
 			start = i; name = match[2];
-		} else if (match[1] === '/') {
+		} else if (match[1] === '/') { // closing tag
 			if (name !== match[2]) { continue; }
 			if (get && !(name in get)) {
 				get[name] = tokens.slice(start + 1, i).join('');
@@ -320,17 +315,51 @@ function Section_swapOptions(get, set) {
 			if (set && (name in set)) {
 				const now = tokenize(set[name]);
 				const old = tokens.splice(start + 1, i - start - 1, ...now);
-				const diff = now.length - old.length;
-				i += diff; l += diff;
+				const diff = now.length - old.length; i += diff; l += diff;
 			}
 			start = -1; name = null;
-		} else { const name = match[2]; if (set && (name in set)) {
-			const now = [ `/*[[!${name}]]*/`, ...tokenize(set[name]), `/*[[/${name}]]*/`, ];
-			tokens.splice(i, 1, ...now); i += now.length - 1;
-		} }
+		} else if (match[1] === '') { // single tag
+			const name = match[2]; if (set && (name in set)) {
+				const now = [ `/*[[!${name}]]*/`, ...tokenize(set[name]), `/*[[/${name}]]*/`, ];
+				tokens.splice(i, 1, ...now); i += now.length - 1; l += now.length - 1;
+			}
+		} else { // tag(s) within string
+			const name = match[4] || match[5];
+			if (get && !(name in get) && match[6] != null) {
+				get[name] = match[6];
+			}
+			if (set && (name in set)) {
+				tokens[i] = match[3] +`/*[[!${name}]]*/${
+					JSON.stringify(set[name]).replace(/'/, "\\'")
+				}/*[[/${name}]]*/`+ match[7];
+			}
+			// TODO: this allows for only a single substitution per string. Could just do this again for the suffix (plus the first char(s) of the prefix)
+		}
 	}
 	return get;
 }
+const rOptionTag = RegExpX`^(?: # captures: [ , type, name, prefix, name, name, content, suffix, ]
+    # matches tokens that are options tag
+	\/\*!?\[\[            # '/*[[' or '/*![['
+		([\!\/]?)         # type: '!' for opening, '/' for closing, '' for single (undefined if in string)
+		([a-zA-Z][\w-]+)  # name
+	\]\]\*\/              # ']]*/'
+|   # or options tags with in string tokens
+    # TODO: or url()/url("")/url('') ?
+	(["'].*?) (?:
+		\/\*!?\[\[        # as a single tag
+			([a-zA-Z][\w-]+)  # name
+		\]\]\*\/
+	|                     # or
+		\/\*!?\[\[ \!     # as a opening tag
+			([a-zA-Z][\w-]+)  # name
+		\]\]\*\/
+		(.*?)             # some content
+		\/\*!?\[\[ \/     # and the closing tag
+			$5            # that matches
+		\]\]\*\/
+	) (.*["'])
+)$`;
 
 // Splits a CSS code string into atomic parts (as far as this parser is concerned).
 // That is: some keywords, comments, strings, whitespace sequences, words
@@ -345,27 +374,29 @@ const rNonEscape = RegExpX('n')`( # shortest possible sequence that does not end
 	  [^\\]         # something that's not a backslash
 	| \\ [^\\]      # a backslash followed by something that's not, so the backslash is consumed
 	| ( \\ \\ )*    # an even number of backslashes
+	# note: this allows unescaped line breaks
 )*?`;
 const rUrlRule = RegExpX('n')`
 	(?<type> url(-prefix)? | domain | regexp )
 	\s* ( \/\* .*? \*\/ \s* )? \( \s* ( \/\* .*? \*\/ \s* )? ( # whitespace/comment + open (
 		  ' (?<string> ${rNonEscape} ) '
 		| " (?<string> ${rNonEscape} ) "
-		| (?<raw> .*? )
+		| (?<raw> .*? ) # TODO: this should only allow certain chars ["parentheses, whitespace characters, single quotes (') and double quotes (") appearing in a URL must be escaped with a backslash"](https://drafts.csswg.org/css-values-3/#urls)
 	) \s* ( \/\* ( !? as:\ ? (?<as> (chrome|content|web) ) | .*? ) \*\/ \s* )? \)
+	# note: the spec also allows for one or more <url-modifier>s before the closing parentheses
 `;
 const rTokens = RegExpX('gns')`
 	# TODO: \\ [^] should be a token, probably with highest priority
 	  @namespace\b
 	| @(-moz-)?document\b
 	| ${rUrlRule}
-	| [\[\]{}();:] # these would also be matched by 'others' below, but let's be explicit
+	| [\[\]{}();:] # these would also be matched by 'others' below, but let's be explicit as they carry specific importance for the further processing
 	| \/\* .*? ( \*\/ | $ ) # comments
 	| ' ${rNonEscape} ' | " ${rNonEscape} " # strings
 	| !important\b
 	| \s+ # whitespaces
 	| [\w.,<>*-]+ # words
-	| . # others
+	| . # other single chars
 `;
 
 /// Replaces all sequences of comments and whitespace tokens in a token stream with '' or ' ',
