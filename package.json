@@ -23,14 +23,14 @@
 		"license": { "name": "CC 3.0 BY", "url": "https://creativecommons.org/licenses/by/3.0/" }
 	} ],
 	"dependencies": {
-		"es6lib": "0.0.2",
+		"es6lib": "0.0.3",
 		"marked": "0.4.0",
 		"multiport": "0.2.3",
 		"native-ext": "0.3.1",
-		"pbq": "0.3.3",
+		"pbq": "0.3.6",
 		"regexpx": "0.1.4",
 		"web-ext-build": "0.0.9",
-		"web-ext-utils": "0.1.6",
+		"web-ext-utils": "0.1.10",
 		"yamljs": "0.3.0"
 	},
 	"devDependencies": {
