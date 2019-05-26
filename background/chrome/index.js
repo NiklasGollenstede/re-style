@@ -135,7 +135,7 @@ async function writeStyles(process, clear, replace) {
 			loaded[key] = extract(loaded[key].replace(/\r\n?/g, '\n'));
 		});
 	} }
-	(await native.write(files, replace));
+	(await native.write(files, replace, true));
 
 	changed = Object.entries((await loaded)).some(([ key, loaded, ]) => written[key] !== loaded);
 	fireWritten([ changed, ]);
