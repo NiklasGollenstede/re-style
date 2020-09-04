@@ -24,7 +24,7 @@
 	} ],
 	"dependencies": {
 		"es6lib": "0.0.3",
-		"marked": "0.4.0",
+		"marked": "1.1.1",
 		"multiport": "0.2.3",
 		"native-ext": "0.3.1",
 		"pbq": "0.3.6",
