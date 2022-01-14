@@ -1,5 +1,5 @@
 
-# reStyle — UI styles for Firefox 57
+# reStyle — UI styles for Firefox 57 and later
 
 This user style manager supports the usual installation of styles from URL  and polling those URLs for updates.
 In addition to that, you can load <b>local styles</b> and apply styles to the <b>browser UI</b>.
